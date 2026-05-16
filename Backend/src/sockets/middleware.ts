@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import type { Socket } from "socket.io";
+import { env } from "../config/env.js";
 
 // ─────────────────────────────────────────────
 // Socket.IO middleware: xác thực JWT
@@ -23,8 +24,7 @@ export function authMiddleware(
       return next(new Error("Authentication error: No token provided"));
     }
 
-    const secret = process.env.JWT_SECRET || "replace_with_strong_secret";
-    const decoded = jwt.verify(token, secret) as { userId: string };
+    const decoded = jwt.verify(token, env.jwtSecret) as { userId: string };
     socket.data.userId = decoded.userId;
     next();
   } catch {

@@ -157,9 +157,16 @@ export function SettingsView() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              const key = item.id.replace(/-/g, "") as keyof typeof settings;
-              if (key in settings) {
-                handleToggle(key as keyof typeof settings);
+              // Explicit map từ item.id (kebab-case) sang settings key (camelCase)
+              const keyMap: Record<string, keyof typeof settings> = {
+                "private-account": "privateAccount",
+                "online-status": "onlineStatus",
+                "push-notifications": "notifications",
+                "dark-mode": "darkMode",
+              };
+              const key = keyMap[item.id];
+              if (key) {
+                handleToggle(key);
               }
             }}
             className={`relative w-12 h-6 rounded-full transition-colors ${

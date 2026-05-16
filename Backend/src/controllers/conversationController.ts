@@ -222,14 +222,7 @@ export const sendMessage = async (
   try {
     const senderId = req.userId as string;
     const { conversationId } = req.params as { conversationId: string };
-    const { content, messageType = "text" } = req.body;
-
-    // Nếu có file upload từ multer → tạo URL đầy đủ để Frontend dùng được luôn
-    const uploadedFile = (req as any).file as Express.Multer.File | undefined;
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const mediaUrl: string | undefined = uploadedFile
-      ? `${baseUrl}/uploads/${uploadedFile.filename}`
-      : req.body.mediaUrl;
+    const { content, messageType = "text", mediaUrl } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(conversationId)) {
       errorResponse(

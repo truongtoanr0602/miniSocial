@@ -1,5 +1,9 @@
+import { useEffect } from "react";
 import { Home, Search, Bell, User, MessageCircle, PlusSquare, Settings, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useNotifications } from "../../hooks/useNotifications";
+import { authService } from "../../services/authService";
+import { connectSocket, disconnectSocket } from "../../services/socketService";
 
 type ViewType = "feed" | "profile" | "notifications" | "messages" | "search" | "settings";
 
@@ -11,6 +15,20 @@ interface NavigationProps {
 
 export function Navigation({ onViewChange, activeView, onCreatePost }: NavigationProps) {
   const navigate = useNavigate();
+  const { unreadCount } = useNotifications();
+
+  // Kết nối socket khi component mount (user đã đăng nhập)
+  useEffect(() => {
+    connectSocket();
+    return () => {
+      // Không disconnect ở đây vì Navigation unmount ≠ logout
+    };
+  }, []);
+
+  const handleLogout = () => {
+    authService.logout(); // Xóa token + userData + disconnect socket
+    navigate("/login");
+  };
 
   return (
     <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200/50 shadow-sm sticky top-0 z-50">
@@ -97,9 +115,11 @@ export function Navigation({ onViewChange, activeView, onCreatePost }: Navigatio
               title="Thông báo"
             >
               <Bell className="w-6 h-6" />
-              <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center">
-                3
-              </span>
+              {unreadCount > 0 ? (
+                <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              ) : null}
             </button>
 
             <button
@@ -127,7 +147,7 @@ export function Navigation({ onViewChange, activeView, onCreatePost }: Navigatio
             </button>
 
             <button
-              onClick={() => navigate("/login")}
+              onClick={handleLogout}
               className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-all hidden sm:block"
               title="Đăng xuất"
             >

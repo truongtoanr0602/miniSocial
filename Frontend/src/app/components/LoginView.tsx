@@ -34,7 +34,7 @@ export function LoginView() {
 
   // 2. Xử lý Đăng nhập Google (Gộp 2 hàm cũ thành 1 cho gọn)
   const handleGoogleSuccess = async (credentialResponse: any) => {
-    console.log("idToken:", credentialResponse.credential);
+
     try {
       const idToken = credentialResponse.credential;
       

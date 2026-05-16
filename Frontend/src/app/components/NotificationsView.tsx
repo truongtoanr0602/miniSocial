@@ -1,100 +1,7 @@
-import { Heart, MessageCircle, UserPlus, AtSign, Share2, Clock } from "lucide-react";
+import { Heart, MessageCircle, UserPlus, AtSign, Share2, Clock, Check, CheckCheck, Loader2 } from "lucide-react";
+import { useNotifications, type INotification } from "../../hooks/useNotifications";
 
-interface Notification {
-  id: string;
-  type: "like" | "comment" | "follow" | "mention" | "share";
-  user: {
-    name: string;
-    avatar: string;
-  };
-  content?: string;
-  postImage?: string;
-  timestamp: string;
-  read: boolean;
-}
-
-const mockNotifications: Notification[] = [
-  {
-    id: "1",
-    type: "like",
-    user: {
-      name: "Minh Anh",
-      avatar: "https://i.pravatar.cc/150?img=5"
-    },
-    postImage: "https://images.unsplash.com/photo-1682687220742-aba13b6e50ba",
-    timestamp: "5 phút trước",
-    read: false
-  },
-  {
-    id: "2",
-    type: "comment",
-    user: {
-      name: "Tuấn Kiệt",
-      avatar: "https://i.pravatar.cc/150?img=12"
-    },
-    content: "Bức ảnh này đẹp quá! Chụp ở đâu vậy bạn?",
-    postImage: "https://images.unsplash.com/photo-1682687220742-aba13b6e50ba",
-    timestamp: "15 phút trước",
-    read: false
-  },
-  {
-    id: "3",
-    type: "follow",
-    user: {
-      name: "Hương Giang",
-      avatar: "https://i.pravatar.cc/150?img=9"
-    },
-    timestamp: "1 giờ trước",
-    read: false
-  },
-  {
-    id: "4",
-    type: "mention",
-    user: {
-      name: "Đức Anh",
-      avatar: "https://i.pravatar.cc/150?img=33"
-    },
-    content: "đã nhắc đến bạn trong một bình luận",
-    timestamp: "2 giờ trước",
-    read: true
-  },
-  {
-    id: "5",
-    type: "share",
-    user: {
-      name: "Thu Hà",
-      avatar: "https://i.pravatar.cc/150?img=20"
-    },
-    content: "đã chia sẻ bài viết của bạn",
-    postImage: "https://images.unsplash.com/photo-1682687220063-4742bd7fd538",
-    timestamp: "3 giờ trước",
-    read: true
-  },
-  {
-    id: "6",
-    type: "like",
-    user: {
-      name: "Hoàng Long",
-      avatar: "https://i.pravatar.cc/150?img=15"
-    },
-    postImage: "https://images.unsplash.com/photo-1682687220063-4742bd7fd538",
-    timestamp: "5 giờ trước",
-    read: true
-  },
-  {
-    id: "7",
-    type: "comment",
-    user: {
-      name: "Mai Linh",
-      avatar: "https://i.pravatar.cc/150?img=45"
-    },
-    content: "Cảm ơn bạn đã chia sẻ! Rất hữu ích 😊",
-    timestamp: "1 ngày trước",
-    read: true
-  }
-];
-
-const getNotificationIcon = (type: Notification["type"]) => {
+const getNotificationIcon = (type: INotification["type"]) => {
   switch (type) {
     case "like":
       return <Heart className="w-5 h-5 text-red-500 fill-red-500" />;
@@ -106,11 +13,13 @@ const getNotificationIcon = (type: Notification["type"]) => {
       return <AtSign className="w-5 h-5 text-green-500" />;
     case "share":
       return <Share2 className="w-5 h-5 text-orange-500" />;
+    default:
+      return <Heart className="w-5 h-5 text-gray-500" />;
   }
 };
 
-const getNotificationText = (notification: Notification) => {
-  switch (notification.type) {
+const getNotificationText = (type: INotification["type"]) => {
+  switch (type) {
     case "like":
       return "đã thích bài viết của bạn";
     case "comment":
@@ -118,94 +27,164 @@ const getNotificationText = (notification: Notification) => {
     case "follow":
       return "đã bắt đầu theo dõi bạn";
     case "mention":
-      return notification.content || "đã nhắc đến bạn";
+      return "đã nhắc đến bạn";
     case "share":
-      return notification.content || "đã chia sẻ bài viết của bạn";
+      return "đã chia sẻ bài viết của bạn";
+    default:
+      return "đã tương tác với bạn";
   }
 };
 
+/**
+ * Tính thời gian tương đối từ timestamp.
+ */
+function timeAgo(dateStr: string): string {
+  const now = Date.now();
+  const diff = now - new Date(dateStr).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Vừa xong";
+  if (minutes < 60) return `${minutes} phút trước`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} giờ trước`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} ngày trước`;
+  return new Date(dateStr).toLocaleDateString("vi-VN");
+}
+
 export function NotificationsView() {
+  const { notifications, isLoading, error, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+
+  if (isLoading) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-12 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+          <span className="ml-3 text-gray-500">Đang tải thông báo...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-12 text-center">
+          <p className="text-red-500">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden">
         {/* Header */}
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-            Thông báo
-          </h2>
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+              Thông báo
+            </h2>
+            {unreadCount > 0 ? (
+              <p className="text-sm text-gray-500 mt-1">{unreadCount} chưa đọc</p>
+            ) : null}
+          </div>
+          {unreadCount > 0 ? (
+            <button
+              onClick={markAllAsRead}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+            >
+              <CheckCheck className="w-4 h-4" />
+              Đánh dấu tất cả đã đọc
+            </button>
+          ) : null}
         </div>
 
         {/* Notifications List */}
-        <div className="divide-y divide-gray-100">
-          {mockNotifications.map((notification) => (
-            <div
-              key={notification.id}
-              className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
-                !notification.read ? "bg-purple-50/50" : ""
-              }`}
-            >
-              <div className="flex gap-3">
-                {/* Avatar with notification icon */}
-                <div className="relative flex-shrink-0">
-                  <img
-                    src={notification.user.avatar}
-                    alt={notification.user.name}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                  <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow-md">
-                    {getNotificationIcon(notification.type)}
-                  </div>
-                </div>
+        {notifications.length === 0 ? (
+          <div className="p-12 text-center">
+            <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Heart className="w-8 h-8 text-purple-400" />
+            </div>
+            <p className="text-gray-500 font-medium">Chưa có thông báo nào</p>
+            <p className="text-sm text-gray-400 mt-1">Khi có người tương tác, bạn sẽ thấy ở đây</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {notifications.map((notification) => {
+              // Lấy thông tin sender (có thể là object hoặc string)
+              const sender = typeof notification.sender_id === "object"
+                ? notification.sender_id
+                : null;
+              const senderName = sender?.display_name || sender?.username || "Ai đó";
+              const senderAvatar = sender?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=7c3aed&color=fff`;
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <p className="text-sm">
-                        <span className="font-semibold text-gray-900">
-                          {notification.user.name}
-                        </span>{" "}
-                        <span className="text-gray-600">
-                          {getNotificationText(notification)}
-                        </span>
-                      </p>
-                      {notification.type === "comment" && notification.content && (
-                        <p className="mt-1 text-sm text-gray-700 bg-gray-100 rounded-lg p-2">
-                          "{notification.content}"
-                        </p>
-                      )}
-                      <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
-                        <Clock className="w-3 h-3" />
-                        <span>{notification.timestamp}</span>
+              return (
+                <div
+                  key={notification._id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    if (!notification.is_read) {
+                      markAsRead(notification._id);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      if (!notification.is_read) {
+                        markAsRead(notification._id);
+                      }
+                    }
+                  }}
+                  className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
+                    !notification.is_read ? "bg-purple-50/50" : ""
+                  }`}
+                >
+                  <div className="flex gap-3">
+                    {/* Avatar with notification icon */}
+                    <div className="relative flex-shrink-0">
+                      <img
+                        src={senderAvatar}
+                        alt={senderName}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                      <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1 shadow-md">
+                        {getNotificationIcon(notification.type)}
                       </div>
                     </div>
 
-                    {/* Post thumbnail */}
-                    {notification.postImage && (
-                      <img
-                        src={notification.postImage}
-                        alt="Post"
-                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
-                      />
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className="text-sm">
+                            <span className="font-semibold text-gray-900">
+                              {senderName}
+                            </span>{" "}
+                            <span className="text-gray-600">
+                              {notification.content || getNotificationText(notification.type)}
+                            </span>
+                          </p>
+                          <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+                            <Clock className="w-3 h-3" />
+                            <span>{timeAgo(notification.createdAt)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Read indicator */}
+                    {!notification.is_read ? (
+                      <div className="w-2.5 h-2.5 bg-purple-600 rounded-full flex-shrink-0 mt-2"></div>
+                    ) : (
+                      <Check className="w-4 h-4 text-gray-300 flex-shrink-0 mt-2" />
                     )}
                   </div>
                 </div>
-
-                {/* Unread indicator */}
-                {!notification.read && (
-                  <div className="w-2 h-2 bg-purple-600 rounded-full flex-shrink-0 mt-2"></div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Load more */}
-        <div className="p-4 text-center">
-          <button className="text-purple-600 hover:text-purple-700 font-medium text-sm transition-colors">
-            Xem thêm thông báo
-          </button>
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

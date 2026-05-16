@@ -7,7 +7,7 @@ import { successResponse, errorResponse } from "../utils/response.js";
 import otpModels from "../models/otpModels.js";
 import { env } from "../config/env.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_key";
+
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // ─────────────────────────────────────────────
@@ -431,7 +431,7 @@ export const googleLogin = async (
       await user.save();
     }
 
-    const token = jwt.sign({ userId: user._id }, JWT_SECRET, {
+    const token = jwt.sign({ userId: user._id }, env.jwtSecret, {
       expiresIn: "7d",
     });
 

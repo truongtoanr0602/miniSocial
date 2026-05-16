@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { env } from '../config/env.js';
 
 export const verifyToken = (req: Request, res: Response, next: NextFunction): void => {
   try {
@@ -24,10 +25,8 @@ export const verifyToken = (req: Request, res: Response, next: NextFunction): vo
       return; // Bắt buộc phải có return ở đây
     }
 
-    // 2. Giải mã Token
-    // Lấy chuỗi bí mật từ file .env (Bạn đã khai báo là ToanQuoc_MiniSocial_SecretKey_2026)
-    const secretKey = process.env.JWT_SECRET as string; 
-    const decoded = jwt.verify(token, secretKey) as any;
+    // 2. Giải mã Token — PHẢI dùng cùng secret key với authController.login
+    const decoded = jwt.verify(token, env.jwtSecret) as any;
 
     // 3. Gắn ID vào req để Controller (createPost) có thể lấy ra dùng
     // Vì token của bạn chứa "userId" (theo ảnh Postman), ta sẽ lấy decoded.userId
