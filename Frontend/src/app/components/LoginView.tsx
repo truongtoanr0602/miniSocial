@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { GoogleLogin } from '@react-oauth/google';
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react"; // Xóa Github nếu không dùng
+import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { authService } from "../../services/authService";
 
 
@@ -24,7 +24,7 @@ export function LoginView() {
       localStorage.setItem('userToken', data.token);
       localStorage.setItem('userData', JSON.stringify(data.user));
       
-      console.log("🎉 Đăng nhập thành công!", data.user.display_name);
+      // Security fix: không log token ra console
       navigate('/'); 
     } catch (error: any) {
       const serverMessage = error.response?.data?.message || 'Lỗi kết nối server!';
@@ -45,7 +45,7 @@ export function LoginView() {
       localStorage.setItem('userToken', data.token);
       localStorage.setItem('userData', JSON.stringify(data.user));
       
-      console.log("🎉 Đăng nhập Google thành công:", data);
+      // Đăng nhập Google thành công — không log dữ liệu nhạy cảm
       
       // ĐIỀU HƯỚNG VỀ TRANG CHỦ
       navigate('/'); 

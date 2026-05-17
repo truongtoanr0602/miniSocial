@@ -6,3 +6,4 @@ mobile/.expo/
 .env
 backend/uploads/
 *.log
+.Agents/

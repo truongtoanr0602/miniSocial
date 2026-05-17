@@ -73,7 +73,7 @@ export const createPost = async (req: Request, res: Response): Promise<void> => 
     // Populate thông tin người đăng để trả về Frontend hiện ngay lập tức
     const populatedPost = await PostModel.findById(post._id).populate(
       "author_id",
-      "username display_name avatarUrl" // Trả về các trường thông tin cơ bản của User
+      "username display_name avatar_url" // Trả về các trường thông tin cơ bản của User
     );
 
     successResponse(req, res, populatedPost, "post.CREATED", 201, "CREATED"); 
@@ -92,7 +92,7 @@ export const getNewsfeed = async (req: Request, res: Response): Promise<void> =>
         // Lấy danh sách bài viết mới nhất
         const posts = await PostModel.find({ visibility: { $ne: 'private' } }) // Không lấy bài private của người khác
             .sort({ created_at: -1 })
-            .populate("author_id", "username display_name avatarUrl")
+            .populate("author_id", "username display_name avatar_url")
             .lean();
 
         // 💡 Tạm thời comment logic lấy Comment để test post trước. 

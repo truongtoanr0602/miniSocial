@@ -1,5 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, Image as ImageIcon, Smile, MapPin, Users, Globe, Lock, Loader2 } from "lucide-react";
+import {
+  X,
+  Image as ImageIcon,
+  Smile,
+  MapPin,
+  Users,
+  Globe,
+  Lock,
+  Loader2,
+} from "lucide-react";
+import { toast } from "sonner";
 import apiClient from "../../services/api";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 
@@ -17,7 +27,11 @@ const PRIVACY_CONFIG: Record<Privacy, { icon: typeof Globe; label: string }> = {
   private: { icon: Lock, label: "Chỉ mình tôi" },
 };
 
-export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostModalProps) {
+export function CreatePostModal({
+  isOpen,
+  onClose,
+  onPostCreated,
+}: CreatePostModalProps) {
   const [postText, setPostText] = useState("");
   const [privacy, setPrivacy] = useState<Privacy>("public");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -38,23 +52,26 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
 
-    // Giới hạn 4 ảnh
-    const newFiles = files.slice(0, 4 - selectedFiles.length);
-    if (newFiles.length === 0) return;
+      // Giới hạn 4 ảnh
+      const newFiles = files.slice(0, 4 - selectedFiles.length);
+      if (newFiles.length === 0) return;
 
-    setSelectedFiles((prev) => [...prev, ...newFiles]);
+      setSelectedFiles((prev) => [...prev, ...newFiles]);
 
-    // Tạo preview URLs
-    const urls = newFiles.map((file) => URL.createObjectURL(file));
-    setPreviewUrls((prev) => [...prev, ...urls]);
+      // Tạo preview URLs
+      const urls = newFiles.map((file) => URL.createObjectURL(file));
+      setPreviewUrls((prev) => [...prev, ...urls]);
 
-    // Reset input
-    e.target.value = "";
-  }, [selectedFiles.length]);
+      // Reset input
+      e.target.value = "";
+    },
+    [selectedFiles.length],
+  );
 
   const handleRemoveImage = useCallback((index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
@@ -66,7 +83,8 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
   }, []);
 
   const handlePost = useCallback(async () => {
-    if ((!postText.trim() && selectedFiles.length === 0) || isSubmitting) return;
+    if ((!postText.trim() && selectedFiles.length === 0) || isSubmitting)
+      return;
 
     setIsSubmitting(true);
     setError("");
@@ -99,7 +117,15 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
     } finally {
       setIsSubmitting(false);
     }
-  }, [postText, selectedFiles, privacy, isSubmitting, previewUrls, onPostCreated, onClose]);
+  }, [
+    postText,
+    selectedFiles,
+    privacy,
+    isSubmitting,
+    previewUrls,
+    onPostCreated,
+    onClose,
+  ]);
 
   const handleClose = useCallback(() => {
     if (isSubmitting) return;
@@ -111,12 +137,18 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
     onClose();
   }, [isSubmitting, previewUrls, onClose]);
 
+  const handleUpcomingFeature = useCallback((feature: string) => {
+    toast.info(`${feature} đang được phát triển.`);
+  }, []);
+
   // FIX: Hooks phải ở trên, return ở dưới (Rules of Hooks)
   if (!isOpen) return null;
 
   const PrivacyIcon = PRIVACY_CONFIG[privacy].icon;
   const userName = currentUser?.display_name || currentUser?.username || "Bạn";
-  const userAvatar = (currentUser as any)?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=7c3aed&color=fff`;
+  const userAvatar =
+    (currentUser as any)?.avatar_url ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=7c3aed&color=fff`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -218,7 +250,9 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
         {/* Add to Post */}
         <div className="px-4 py-3 border-t border-gray-200">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700">Thêm vào bài viết</span>
+            <span className="text-sm font-medium text-gray-700">
+              Thêm vào bài viết
+            </span>
             <div className="flex items-center gap-1">
               <button
                 onClick={handleImageSelect}
@@ -228,12 +262,14 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
                 <ImageIcon className="w-6 h-6 text-green-500 group-hover:scale-110 transition-transform" />
               </button>
               <button
+                onClick={() => handleUpcomingFeature("Thêm cảm xúc")}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors group"
                 title="Thêm cảm xúc"
               >
                 <Smile className="w-6 h-6 text-yellow-500 group-hover:scale-110 transition-transform" />
               </button>
               <button
+                onClick={() => handleUpcomingFeature("Thêm vị trí")}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors group"
                 title="Thêm vị trí"
               >
@@ -247,7 +283,9 @@ export function CreatePostModal({ isOpen, onClose, onPostCreated }: CreatePostMo
         <div className="p-4 border-t border-gray-200">
           <button
             onClick={handlePost}
-            disabled={(!postText.trim() && selectedFiles.length === 0) || isSubmitting}
+            disabled={
+              (!postText.trim() && selectedFiles.length === 0) || isSubmitting
+            }
             className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isSubmitting ? (

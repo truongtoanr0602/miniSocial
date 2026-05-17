@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Mail, KeyRound, Lock } from "lucide-react"; 
 import { useNavigate, Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import axios from "axios";
+import { motion } from "motion/react";
+import apiClient from "../../services/api";
 
 
 export function ForgotPassword() {
@@ -32,7 +32,7 @@ export function ForgotPassword() {
         console.log("Đang gọi API /api/auth/sendPhoneOtp với OTP:", otp);
         
         // TODO: Chỗ này bạn gọi authService thực tế của bạn
-        await axios.post('http://localhost:3000/api/auth/sendPhoneOtp', { phone_number: account });
+        await apiClient.post('/auth/sendPhoneOtp', { phone_number: account });
         
         alert("Mã OTP đã được gửi vào số điện thoại của bạn!");
         
@@ -42,7 +42,7 @@ export function ForgotPassword() {
         // NẾU LÀ EMAIL -> Xử lý gửi link vào Email
         console.log("Xử lý gửi link reset vào Email:", account);
         
-        await axios.post('http://localhost:3000/api/auth/sendEmailOtp', {
+        await apiClient.post('/auth/sendEmailOtp', {
           email: account
         });
         alert("Link khôi phục đã được gửi vào Email của bạn!");
@@ -64,7 +64,7 @@ export function ForgotPassword() {
       const isPhone = isPhoneNumber(account);
       // ⚡️ GỌI API THỰC TẾ XUỐNG BACKEND Ở ĐÂY
       // Truyền đúng 3 trường: phone_number, otp, và newPassword
-      await axios.post('http://localhost:3000/api/auth/resetPassword', {
+      await apiClient.post('/auth/resetPassword', {
         phone_number: isPhone ? account : undefined,
         email: !isPhone ? account : undefined,
         otp: otp,

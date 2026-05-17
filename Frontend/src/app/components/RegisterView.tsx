@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, AtSign } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { authService } from "../../services/authService";
 import { useTranslation } from "react-i18next";
 import apiClient from "../../services/api";
 
@@ -55,6 +54,7 @@ export function RegisterView() {
     try {
       const isPhone = isPhoneNumber(contact);
       
+      // Gọi API đăng ký thực sự
       await apiClient.post('/auth/register', {
         username: username,
         display_name: displayName,
@@ -71,52 +71,6 @@ export function RegisterView() {
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // 1. Kiểm tra mật khẩu khớp nhau
-    if (password !== confirmPassword) {
-      setError(t("auth.PASSWORD_MISMATCH"));
-      return;
-    }
-
-    // 2. Thuật toán nhận diện Email hay Số điện thoại (Regex)
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact);
-    // Nhận diện số điện thoại chuẩn Việt Nam (Bắt đầu bằng 0 hoặc 84, gồm 10 số)
-    const isPhone = /(84|0[3|5|7|8|9])+([0-9]{8})\b/.test(contact); 
-
-    if (!isEmail && !isPhone) {
-      setError(t("auth.INVALID_CONTACT_FORMAT"));
-      return;
-    }
-
-    setError(""); // Xóa lỗi cũ nếu có
-
-    try {
-      
-      // 3. Đóng gói dữ liệu gửi xuống Backend
-      const userData: any = {
-        display_name: displayName,
-        username: username,
-        password: password,
-        email: isEmail ? contact : null,
-        phone_number: isPhone ? contact : null
-      };
-
-      // 4. Gọi API Backend
-      const data = await authService.register(userData);
-      
-      
-      alert(data.message || "Đăng ký thành công! Đang chuyển hướng...");
-      
-      // 5. Thành công thì chuyển về trang Login
-      navigate("/login");
-
-    } catch (error: any) {
-      // Bắt lỗi từ Backend (VD: Trùng username, trùng email...)
-      setError(error.response?.data?.message || 'Có lỗi xảy ra khi đăng ký!');
-    }
-  };
   return (
     <div className="min-h-screen relative flex items-center justify-center overflow-hidden bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
       {/* Animated gradient orbs background */}

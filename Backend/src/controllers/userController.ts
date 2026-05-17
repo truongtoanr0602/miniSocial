@@ -21,7 +21,7 @@ export const getUserProfile = async (req: Request, res: Response): Promise<void>
     }
 
     // Lấy các bài viết của user này
-    const posts = await PostModel.find({ author_id: id })
+    const posts = await PostModel.find({ author_id: id } as any)
       .sort({ created_at: -1 })
       .lean();
 
@@ -52,11 +52,11 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       userId,
       {
         ...(display_name && { display_name }),
-        ...(bio && { bio }),
-        ...(avatarUrl && { avatarUrl })
+        ...(bio !== undefined && { bio }),
+        ...(avatarUrl && { avatar_url: avatarUrl })
       },
       { new: true } // Trả về data mới sau khi update
-    ).select('-password');
+    ).select('-password_hash');
 
     successResponse(req, res, updatedUser, "user.UPDATED", 200, "UPDATED");
   } catch (error: any) {
@@ -107,6 +107,75 @@ export const toggleFollow = async (req: Request, res: Response): Promise<void> =
     }
   } catch (error: any) {
     console.error("Lỗi Follow:", error);
+    errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
+  }
+};
+
+// ==========================================
+// 4. GỢI Ý KẾT BẠN (Suggested Users)
+// ==========================================
+export const getSuggestedUsers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const currentUserId = (req as any).userId;
+    const currentUser = await User.findById(currentUserId).select('following');
+    
+    // Lấy danh sách user mà mình chưa follow (trừ chính mình)
+    const excludeIds = [currentUserId, ...(currentUser?.following?.map(id => id.toString()) || [])];
+    
+    const suggestedUsers = await User.find({
+      _id: { $nin: excludeIds },
+      status: 'active'
+    })
+      .select('username display_name avatar_url bio followers')
+      .limit(10)
+      .lean();
+    
+    // Thêm follower count cho frontend hiển thị
+    const usersWithStats = suggestedUsers.map(user => ({
+      ...user,
+      followerCount: user.followers?.length || 0,
+    }));
+
+    successResponse(req, res, usersWithStats, "user.SUGGESTED_USERS", 200, "SUGGESTED_USERS");
+  } catch (error: any) {
+    console.error("Lỗi lấy gợi ý kết bạn:", error);
+    errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
+  }
+};
+
+// ==========================================
+// 5. LẤY PROFILE CỦA CHÍNH MÌNH
+// ==========================================
+export const getMyProfile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).userId;
+
+    const user = await User.findById(userId)
+      .select('-password_hash')
+      .lean();
+
+    if (!user) {
+      errorResponse(req, res, "user.NOT_FOUND", 404, "NOT_FOUND");
+      return;
+    }
+
+    // Lấy bài viết của user
+    const posts = await PostModel.find({ author_id: userId } as any)
+      .sort({ created_at: -1 })
+      .populate("author_id", "username display_name avatar_url")
+      .lean();
+
+    const profileData = {
+      ...user,
+      postsCount: posts.length,
+      followersCount: user.followers?.length || 0,
+      followingCount: user.following?.length || 0,
+      posts,
+    };
+
+    successResponse(req, res, profileData, "user.PROFILE_FETCHED", 200, "PROFILE_FETCHED");
+  } catch (error: any) {
+    console.error("Lỗi lấy profile:", error);
     errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
   }
 };

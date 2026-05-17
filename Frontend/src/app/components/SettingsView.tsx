@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   User,
   Lock,
@@ -10,8 +10,14 @@ import {
   HelpCircle,
   LogOut,
   ChevronRight,
-  Camera
+  Camera,
+  Loader2,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import apiClient from "../../services/api";
+import { authService } from "../../services/authService";
+import { toast } from "sonner";
+import type { IMyProfile } from "../../types/models";
 
 interface SettingItem {
   id: string;
@@ -23,30 +29,111 @@ interface SettingItem {
   danger?: boolean;
 }
 
-export function SettingsView() {
-  // Lazy init: đọc settings đã lưu từ localStorage
-  const [settings, setSettings] = useState(() => {
-    const defaults = {
-      notifications: true,
-      darkMode: false,
-      privateAccount: false,
-      onlineStatus: true,
-    };
-    try {
-      const saved = localStorage.getItem("appSettings");
-      return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
-    } catch {
-      return defaults;
-    }
-  });
+// Setting keys persisted in localStorage
+interface Settings {
+  notifications: boolean;
+  darkMode: boolean;
+  privateAccount: boolean;
+  onlineStatus: boolean;
+}
 
-  const handleToggle = (key: keyof typeof settings) => {
-    setSettings((prev: any) => {
+type ViewType =
+  | "feed"
+  | "profile"
+  | "notifications"
+  | "messages"
+  | "search"
+  | "settings";
+
+const SETTINGS_KEY = "v1:settings";
+
+function loadSettings(): Settings {
+  try {
+    const stored = localStorage.getItem(SETTINGS_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {
+    // Corrupt data — use defaults
+  }
+  return {
+    notifications: true,
+    darkMode: false,
+    privateAccount: false,
+    onlineStatus: true,
+  };
+}
+
+interface SettingsViewProps {
+  onViewChange: (view: ViewType) => void;
+}
+
+export function SettingsView({ onViewChange }: SettingsViewProps) {
+  const navigate = useNavigate();
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const [profile, setProfile] = useState<IMyProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch user data thật
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const token = localStorage.getItem("userToken");
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const response = await apiClient.get("/users/me");
+        setProfile(response.data.data);
+      } catch (err) {
+        console.error("Lỗi tải profile:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  // Persist settings vào localStorage khi thay đổi
+  const handleToggle = useCallback((key: keyof Settings) => {
+    setSettings((prev) => {
       const updated = { ...prev, [key]: !prev[key] };
-      // Persist vào localStorage
-      localStorage.setItem("appSettings", JSON.stringify(updated));
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
       return updated;
     });
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    authService.logout();
+    navigate("/login");
+  }, [navigate]);
+
+  const handleNavigateAction = useCallback(
+    (itemId: string) => {
+      switch (itemId) {
+        case "edit-profile":
+          onViewChange("profile");
+          break;
+        case "change-password":
+          navigate("/forgot-password");
+          break;
+        case "language":
+          toast.info("Hiện tại ứng dụng đang hỗ trợ Tiếng Việt.");
+          break;
+        case "help":
+          toast.info("Vui lòng liên hệ support@minisocial.app để được hỗ trợ.");
+          break;
+        default:
+          break;
+      }
+    },
+    [navigate, onViewChange],
+  );
+
+  // Explicit map từ item.id (kebab-case) sang settings key (camelCase)
+  const keyMap: Record<string, keyof Settings> = {
+    "private-account": "privateAccount",
+    "online-status": "onlineStatus",
+    "push-notifications": "notifications",
+    "dark-mode": "darkMode",
   };
 
   const accountSettings: SettingItem[] = [
@@ -55,15 +142,15 @@ export function SettingsView() {
       icon: <User className="w-5 h-5" />,
       title: "Chỉnh sửa trang cá nhân",
       description: "Thay đổi ảnh đại diện, tên, bio",
-      action: "navigate"
+      action: "navigate",
     },
     {
       id: "change-password",
       icon: <Lock className="w-5 h-5" />,
       title: "Đổi mật khẩu",
       description: "Cập nhật mật khẩu của bạn",
-      action: "navigate"
-    }
+      action: "navigate",
+    },
   ];
 
   const privacySettings: SettingItem[] = [
@@ -73,7 +160,7 @@ export function SettingsView() {
       title: "Tài khoản riêng tư",
       description: "Chỉ người theo dõi mới xem được bài viết",
       action: "toggle",
-      value: settings.privateAccount
+      value: settings.privateAccount,
     },
     {
       id: "online-status",
@@ -81,8 +168,8 @@ export function SettingsView() {
       title: "Trạng thái hoạt động",
       description: "Hiển thị khi bạn đang online",
       action: "toggle",
-      value: settings.onlineStatus
-    }
+      value: settings.onlineStatus,
+    },
   ];
 
   const notificationSettings: SettingItem[] = [
@@ -92,8 +179,8 @@ export function SettingsView() {
       title: "Thông báo đẩy",
       description: "Nhận thông báo về hoạt động",
       action: "toggle",
-      value: settings.notifications
-    }
+      value: settings.notifications,
+    },
   ];
 
   const appearanceSettings: SettingItem[] = [
@@ -103,15 +190,15 @@ export function SettingsView() {
       title: "Chế độ tối",
       description: "Sử dụng giao diện tối",
       action: "toggle",
-      value: settings.darkMode
+      value: settings.darkMode,
     },
     {
       id: "language",
       icon: <Globe className="w-5 h-5" />,
       title: "Ngôn ngữ",
       description: "Tiếng Việt",
-      action: "navigate"
-    }
+      action: "navigate",
+    },
   ];
 
   const supportSettings: SettingItem[] = [
@@ -119,15 +206,15 @@ export function SettingsView() {
       id: "help",
       icon: <HelpCircle className="w-5 h-5" />,
       title: "Trợ giúp & hỗ trợ",
-      action: "navigate"
+      action: "navigate",
     },
     {
       id: "logout",
       icon: <LogOut className="w-5 h-5" />,
       title: "Đăng xuất",
       action: "button",
-      danger: true
-    }
+      danger: true,
+    },
   ];
 
   const renderSettingItem = (item: SettingItem) => {
@@ -135,11 +222,17 @@ export function SettingsView() {
       <div
         key={item.id}
         className={`flex items-center justify-between p-4 hover:bg-gray-50 transition-colors ${
-          item.action === "navigate" || item.action === "button" ? "cursor-pointer" : ""
+          item.action === "navigate" || item.action === "button"
+            ? "cursor-pointer"
+            : ""
         }`}
         onClick={() => {
           if (item.action === "button" && item.id === "logout") {
-            console.log("Logout");
+            handleLogout();
+            return;
+          }
+          if (item.action === "navigate") {
+            handleNavigateAction(item.id);
           }
         }}
       >
@@ -161,23 +254,19 @@ export function SettingsView() {
             >
               {item.title}
             </h4>
-            {item.description && (
+            {item.description ? (
               <p className="text-sm text-gray-600 mt-0.5">{item.description}</p>
-            )}
+            ) : null}
           </div>
         </div>
 
-        {item.action === "toggle" && (
+        {item.action === "toggle" ? (
           <button
+            role="switch"
+            aria-checked={item.value}
+            aria-label={item.title}
             onClick={(e) => {
               e.stopPropagation();
-              // Explicit map từ item.id (kebab-case) sang settings key (camelCase)
-              const keyMap: Record<string, keyof typeof settings> = {
-                "private-account": "privateAccount",
-                "online-status": "onlineStatus",
-                "push-notifications": "notifications",
-                "dark-mode": "darkMode",
-              };
               const key = keyMap[item.id];
               if (key) {
                 handleToggle(key);
@@ -193,14 +282,22 @@ export function SettingsView() {
               }`}
             ></div>
           </button>
-        )}
+        ) : null}
 
-        {item.action === "navigate" && (
+        {item.action === "navigate" ? (
           <ChevronRight className="w-5 h-5 text-gray-400" />
-        )}
+        ) : null}
       </div>
     );
   };
+
+  // Profile section data — thật từ API
+  const displayName = profile?.display_name || "Đang tải...";
+  const username = profile?.username || "";
+  const email = profile?.email || "";
+  const avatarUrl =
+    profile?.avatar_url ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7c3aed&color=fff`;
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -212,25 +309,38 @@ export function SettingsView() {
           </h2>
         </div>
 
-        {/* Profile Section */}
+        {/* Profile Section — dữ liệu thật */}
         <div className="p-6 border-b border-gray-100">
-          <div className="flex items-center gap-4">
-            <div className="relative group cursor-pointer">
-              <img
-                src="https://i.pravatar.cc/150?img=1"
-                alt="Profile"
-                className="w-20 h-20 rounded-full object-cover"
-              />
-              <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <Camera className="w-6 h-6 text-white" />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-6 h-6 text-purple-600 animate-spin" />
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div
+                onClick={() => onViewChange("profile")}
+                className="relative group cursor-pointer"
+              >
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  className="w-20 h-20 rounded-full object-cover"
+                />
+                <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-lg text-gray-900">
+                  {displayName}
+                </h3>
+                <p className="text-sm text-gray-600">@{username}</p>
+                {email ? (
+                  <p className="text-sm text-gray-500 mt-1">{email}</p>
+                ) : null}
               </div>
             </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-lg text-gray-900">Nguyễn Văn A</h3>
-              <p className="text-sm text-gray-600">@nguyenvana</p>
-              <p className="text-sm text-gray-500 mt-1">nguyenvana@email.com</p>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Settings Sections */}
@@ -278,9 +388,7 @@ export function SettingsView() {
 
         {/* Footer */}
         <div className="p-6 bg-gray-50 text-center">
-          <p className="text-xs text-gray-500">
-            Social Mini v1.0.0
-          </p>
+          <p className="text-xs text-gray-500">Social Mini v1.0.0</p>
           <p className="text-xs text-gray-400 mt-1">
             © 2026 Social Mini. All rights reserved.
           </p>
