@@ -1,119 +1,109 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { PostCard } from "./PostCard";
+import apiClient from "../../services/api";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
+import type { IPost } from "../../types/models";
 
-export interface Post {
-  id: string;
-  author: {
-    name: string;
-    avatar: string;
-    username: string;
-  };
-  content: string;
-  image?: string;
-  timestamp: string;
-  likes: number;
-  comments: number;
-  shares: number;
+interface PostFeedProps {
+  onCreatePost?: () => void;
 }
 
-const mockPosts: Post[] = [
-  {
-    id: "1",
-    author: {
-      name: "Minh Anh",
-      avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
-      username: "@minhanh"
-    },
-    content: "Buổi sáng tuyệt vời tại Hà Nội! Cà phê và bình minh là tất cả những gì tôi cần. ☕️🌅",
-    image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&h=600&fit=crop",
-    timestamp: "2 giờ trước",
-    likes: 124,
-    comments: 18,
-    shares: 5
-  },
-  {
-    id: "2",
-    author: {
-      name: "Tuấn Kiệt",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
-      username: "@tuankiet"
-    },
-    content: "Coding session hôm nay thật productive! Vừa hoàn thành feature mới cho dự án. 💻✨ #developer #coding",
-    timestamp: "4 giờ trước",
-    likes: 89,
-    comments: 12,
-    shares: 3
-  },
-  {
-    id: "3",
-    author: {
-      name: "Lan Hương",
-      avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
-      username: "@lanhuong"
-    },
-    content: "Cuối tuần này đi hiking ở núi Tam Đảo. Không khí trong lành và phong cảnh tuyệt đẹp! 🏔️🌲",
-    image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=600&fit=crop",
-    timestamp: "6 giờ trước",
-    likes: 256,
-    comments: 34,
-    shares: 12
-  },
-  {
-    id: "4",
-    author: {
-      name: "Đức Mạnh",
-      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop",
-      username: "@ducmanh"
-    },
-    content: "Món ăn mới thử hôm nay - Ramen Nhật Bản cực kỳ ngon! Nước dashi đậm đà, mì dai ngon. Highly recommended! 🍜❤️",
-    image: "https://images.unsplash.com/photo-1557872943-16a5ac26437e?w=800&h=600&fit=crop",
-    timestamp: "1 ngày trước",
-    likes: 178,
-    comments: 23,
-    shares: 8
-  },
-  {
-    id: "5",
-    author: {
-      name: "Thu Trang",
-      avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop",
-      username: "@thutrang"
-    },
-    content: "Sunset tại bãi biển Đà Nẵng. Những khoảnh khắc yên bình như thế này thật đáng quý. 🌅🌊",
-    image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=600&fit=crop",
-    timestamp: "1 ngày trước",
-    likes: 312,
-    comments: 45,
-    shares: 19
+export function PostFeed({ onCreatePost }: PostFeedProps) {
+  const [posts, setPosts] = useState<IPost[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const currentUser = useCurrentUser();
+
+  const fetchPosts = useCallback(async () => {
+    const token = localStorage.getItem("userToken");
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const response = await apiClient.get("/post/feed");
+      const data = response.data.data;
+      setPosts(Array.isArray(data) ? data : []);
+      setError(null);
+    } catch (err: any) {
+      if (err.response?.status !== 401) {
+        setError(err.response?.data?.message || "Lỗi tải bảng tin");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
+
+  // Like bài viết qua API
+  const handleLike = useCallback(async (postId: string) => {
+    try {
+      await apiClient.post(`/post/${postId}/react`);
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === postId
+            ? { ...post, stats: { ...post.stats, likes: post.stats.likes + 1 } }
+            : post,
+        ),
+      );
+    } catch (err) {
+      console.error("Lỗi like bài viết:", err);
+    }
+  }, []);
+
+  const handleComment = useCallback((_postId: string) => {
+    // Sẽ mở phần comment — logic hiện tại trong PostCard
+  }, []);
+
+  const handleShare = useCallback((_postId: string) => {
+    // Sẽ implement share sau
+  }, []);
+
+  const handleOpenCreatePost = useCallback(() => {
+    if (onCreatePost) {
+      onCreatePost();
+      return;
+    }
+    toast.info("Tính năng tạo bài viết đang được cập nhật.");
+  }, [onCreatePost]);
+
+  // Lấy avatar URL hiện tại
+  const userAvatar =
+    currentUser?.avatar ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.display_name || "U")}&background=7c3aed&color=fff`;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 pb-6">
+        <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-12 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+          <span className="ml-3 text-gray-500">Đang tải bảng tin...</span>
+        </div>
+      </div>
+    );
   }
-];
 
-export function PostFeed() {
-  const [posts, setPosts] = useState<Post[]>(mockPosts);
-
-  const handleLike = (postId: string) => {
-    setPosts(posts.map(post => 
-      post.id === postId 
-        ? { ...post, likes: post.likes + 1 }
-        : post
-    ));
-  };
-
-  const handleComment = (postId: string) => {
-    setPosts(posts.map(post => 
-      post.id === postId 
-        ? { ...post, comments: post.comments + 1 }
-        : post
-    ));
-  };
-
-  const handleShare = (postId: string) => {
-    setPosts(posts.map(post => 
-      post.id === postId 
-        ? { ...post, shares: post.shares + 1 }
-        : post
-    ));
-  };
+  if (error) {
+    return (
+      <div className="space-y-6 pb-6">
+        <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-12 text-center">
+          <p className="text-red-500">{error}</p>
+          <button
+            onClick={fetchPosts}
+            className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all"
+          >
+            Thử lại
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-6">
@@ -121,7 +111,7 @@ export function PostFeed() {
       <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-4 border border-gray-200/50">
         <div className="flex items-center space-x-3">
           <img
-            src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop"
+            src={userAvatar}
             alt="Your avatar"
             className="w-12 h-12 rounded-full object-cover"
           />
@@ -129,34 +119,58 @@ export function PostFeed() {
             type="text"
             placeholder="Bạn đang nghĩ gì?"
             className="flex-1 px-4 py-3 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500"
+            readOnly
+            onClick={handleOpenCreatePost}
           />
         </div>
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
-          <button className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition-all">
+          <button
+            onClick={handleOpenCreatePost}
+            className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition-all"
+          >
             <span className="text-xl">📸</span>
             <span className="text-sm text-gray-600 hidden sm:inline">Ảnh</span>
           </button>
-          <button className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition-all">
+          <button
+            onClick={handleOpenCreatePost}
+            className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition-all"
+          >
             <span className="text-xl">🎥</span>
-            <span className="text-sm text-gray-600 hidden sm:inline">Video</span>
+            <span className="text-sm text-gray-600 hidden sm:inline">
+              Video
+            </span>
           </button>
-          <button className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition-all">
+          <button
+            onClick={handleOpenCreatePost}
+            className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition-all"
+          >
             <span className="text-xl">😊</span>
-            <span className="text-sm text-gray-600 hidden sm:inline">Cảm xúc</span>
+            <span className="text-sm text-gray-600 hidden sm:inline">
+              Cảm xúc
+            </span>
           </button>
         </div>
       </div>
 
-      {/* Posts */}
-      {posts.map(post => (
-        <PostCard
-          key={post.id}
-          post={post}
-          onLike={handleLike}
-          onComment={handleComment}
-          onShare={handleShare}
-        />
-      ))}
+      {/* Posts — dữ liệu thật từ API */}
+      {posts.length === 0 ? (
+        <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-12 text-center">
+          <p className="text-gray-500 font-medium">Chưa có bài viết nào</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Hãy tạo bài viết đầu tiên hoặc theo dõi ai đó!
+          </p>
+        </div>
+      ) : (
+        posts.map((post) => (
+          <PostCard
+            key={post._id}
+            post={post}
+            onLike={handleLike}
+            onComment={handleComment}
+            onShare={handleShare}
+          />
+        ))
+      )}
     </div>
   );
 }

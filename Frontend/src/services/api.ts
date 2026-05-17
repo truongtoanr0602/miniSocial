@@ -1,11 +1,9 @@
 // Frontend Vite: src/services/api.ts
 import axios from 'axios';
-
-// Đọc từ biến môi trường Vite, fallback về localhost:3000
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+import env from '../config/env';
 
 const apiClient = axios.create({
-  baseURL: BASE_URL,
+  baseURL: env.API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

@@ -10,7 +10,13 @@ import { SearchView } from "./SearchView";
 import { SettingsView } from "./SettingsView";
 import { CreatePostModal } from "./CreatePostModal";
 
-type ViewType = "feed" | "profile" | "notifications" | "messages" | "search" | "settings";
+type ViewType =
+  | "feed"
+  | "profile"
+  | "notifications"
+  | "messages"
+  | "search"
+  | "settings";
 
 export function SocialMediaApp() {
   const [activeView, setActiveView] = useState<ViewType>("feed");
@@ -19,19 +25,24 @@ export function SocialMediaApp() {
   const renderMainContent = () => {
     switch (activeView) {
       case "feed":
-        return <PostFeed />;
+        return <PostFeed onCreatePost={() => setIsCreatePostOpen(true)} />;
       case "profile":
-        return <ProfileView />;
+        return <ProfileView onEditProfile={() => setActiveView("settings")} />;
       case "notifications":
         return <NotificationsView />;
       case "messages":
         return <MessagesView />;
       case "search":
-        return <SearchView />;
+        return (
+          <SearchView
+            onOpenProfile={() => setActiveView("profile")}
+            onOpenPost={() => setActiveView("feed")}
+          />
+        );
       case "settings":
-        return <SettingsView />;
+        return <SettingsView onViewChange={setActiveView} />;
       default:
-        return <PostFeed />;
+        return <PostFeed onCreatePost={() => setIsCreatePostOpen(true)} />;
     }
   };
 
@@ -59,7 +70,7 @@ export function SocialMediaApp() {
               <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr_300px] gap-6 h-full">
                 {/* Left Sidebar - Profile Card */}
                 <div className="hidden lg:block">
-                  <ProfileCard />
+                  <ProfileCard onEditProfile={() => setActiveView("profile")} />
                 </div>
 
                 {/* Main Content */}
@@ -69,7 +80,9 @@ export function SocialMediaApp() {
 
                 {/* Right Sidebar */}
                 <div className="hidden lg:block">
-                  <Sidebar />
+                  <Sidebar
+                    onViewAllSuggestions={() => setActiveView("search")}
+                  />
                 </div>
               </div>
             ) : (

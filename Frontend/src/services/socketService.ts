@@ -1,9 +1,9 @@
 import { io, Socket } from "socket.io-client";
 import { getValidToken } from "../hooks/useCurrentUser";
+import env from "../config/env";
 
 // ─── Singleton Socket.IO connection ───
 // Rule: advanced-init-once — init 1 lần duy nhất, không tái tạo khi StrictMode double-mount
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
 
 let socket: Socket | null = null;
 
@@ -13,7 +13,7 @@ let socket: Socket | null = null;
  */
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io(SERVER_URL, {
+    socket = io(env.SERVER_URL, {
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: 5,

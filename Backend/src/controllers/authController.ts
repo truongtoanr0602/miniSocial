@@ -310,7 +310,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const user = await User.findOne({
-      $or: [{ email: account }, { phone_number: account }],
+      $or: [
+        { email: account },
+        { phone_number: account },
+      ],
     });
 
     if (!user) {

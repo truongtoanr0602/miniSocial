@@ -29,9 +29,10 @@ initializeSocket(server);
 app.use(
   cors({
     origin: function (origin, callback) {
+      // Cho phép: no-origin (mobile app, Postman), localhost, LAN IPs (192.168.x.x, 10.x.x.x)
       if (
         !origin ||
-        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+        /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin)
       ) {
         callback(null, true);
       } else {
