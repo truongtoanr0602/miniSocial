@@ -24,15 +24,29 @@ interface SettingItem {
 }
 
 export function SettingsView() {
-  const [settings, setSettings] = useState({
-    notifications: true,
-    darkMode: false,
-    privateAccount: false,
-    onlineStatus: true
+  // Lazy init: đọc settings đã lưu từ localStorage
+  const [settings, setSettings] = useState(() => {
+    const defaults = {
+      notifications: true,
+      darkMode: false,
+      privateAccount: false,
+      onlineStatus: true,
+    };
+    try {
+      const saved = localStorage.getItem("appSettings");
+      return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
+    } catch {
+      return defaults;
+    }
   });
 
   const handleToggle = (key: keyof typeof settings) => {
-    setSettings({ ...settings, [key]: !settings[key] });
+    setSettings((prev: any) => {
+      const updated = { ...prev, [key]: !prev[key] };
+      // Persist vào localStorage
+      localStorage.setItem("appSettings", JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const accountSettings: SettingItem[] = [

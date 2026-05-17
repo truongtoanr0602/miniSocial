@@ -4,7 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { authService } from "../../services/authService";
 import { useTranslation } from "react-i18next";
-import axios from "axios";
+import apiClient from "../../services/api";
 
 // Helper function to check if a string is a phone number
 const isPhoneNumber = (value: string): boolean => {
@@ -37,9 +37,9 @@ export function RegisterView() {
       const isPhone = isPhoneNumber(contact);
       // Gọi API bắn OTP
       if (isPhone) {
-        await axios.post('http://localhost:3000/api/auth/sendPhoneOtp', { phone_number: contact });
+        await apiClient.post('/auth/sendPhoneOtp', { phone_number: contact });
       } else {
-        await axios.post('http://localhost:3000/api/auth/sendEmailOtp', { email: contact });
+        await apiClient.post('/auth/sendEmailOtp', { email: contact });
       }
       
       // Chuyển sang màn hình nhập OTP
@@ -55,8 +55,7 @@ export function RegisterView() {
     try {
       const isPhone = isPhoneNumber(contact);
       
-      // Gọi API đăng ký thực sự
-      await axios.post('http://localhost:3000/api/auth/register', {
+      await apiClient.post('/auth/register', {
         username: username,
         display_name: displayName,
         password: password,
@@ -105,7 +104,6 @@ export function RegisterView() {
       };
 
       // 4. Gọi API Backend
-      console.log("Chuẩn bị gửi dữ liệu này đi:", userData);
       const data = await authService.register(userData);
       
       

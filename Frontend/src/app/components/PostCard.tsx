@@ -1,37 +1,72 @@
-import { useState } from "react";
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal } from "lucide-react";
+import { useState, useCallback, memo } from "react";
+import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Send } from "lucide-react";
 import type { Post } from "./PostFeed";
+import apiClient from "../../services/api";
 
 interface PostCardProps {
   post: Post;
   onLike: (postId: string) => void;
-  onComment: (postId: string) => void;
+  onComment: (postId: string, content?: string) => void;
   onShare: (postId: string) => void;
 }
 
-export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
-  const [isLiked, setIsLiked] = useState(false);
+export const PostCard = memo(function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
+  const [isLiked, setIsLiked] = useState(post.is_liked ?? false);
+  const [likeCount, setLikeCount] = useState(post.likes);
   const [isSaved, setIsSaved] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
 
-  const handleLike = () => {
-    setIsLiked(!isLiked);
+  const handleLike = useCallback(() => {
+    setIsLiked((prev) => !prev);
+    setLikeCount((prev) => (isLiked ? prev - 1 : prev + 1));
     onLike(post.id);
-  };
+  }, [post.id, isLiked, onLike]);
 
-  const handleComment = () => {
-    if (commentText.trim()) {
-      onComment(post.id);
+  const handleToggleComments = useCallback(async () => {
+    const nextShow = !showComments;
+    setShowComments(nextShow);
+
+    // Lazy load comments khi mở lần đầu
+    if (nextShow && !commentsLoaded) {
+      try {
+        const res = await apiClient.get(`/post/${post.id}/comments`);
+        const data = res.data.data;
+        setComments(data?.comments || data || []);
+        setCommentsLoaded(true);
+      } catch {
+        // Fallback — comments sẽ trống
+      }
+    }
+  }, [showComments, commentsLoaded, post.id]);
+
+  const handleSubmitComment = useCallback(async () => {
+    if (!commentText.trim()) return;
+    try {
+      const res = await apiClient.post(`/post/${post.id}/comment`, {
+        content: commentText.trim(),
+      });
+      const newComment = res.data.data;
+      if (newComment) {
+        setComments((prev) => [...prev, newComment]);
+      }
+      onComment(post.id, commentText.trim());
       setCommentText("");
       setShowComments(true);
+    } catch (err) {
+      console.error("Lỗi gửi bình luận:", err);
     }
-  };
+  }, [commentText, post.id, onComment]);
 
-  const handleShare = () => {
+  const handleShare = useCallback(() => {
     onShare(post.id);
-    alert("Đã chia sẻ bài viết!");
-  };
+  }, [post.id, onShare]);
+
+  const handleSave = useCallback(() => {
+    setIsSaved((prev) => !prev);
+  }, []);
 
   return (
     <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border border-gray-200/50 overflow-hidden hover:shadow-xl transition-all duration-300">
@@ -59,19 +94,20 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
 
       {/* Post Content */}
       <div className="px-4 pb-3">
-        <p className="text-gray-800">{post.content}</p>
+        <p className="text-gray-800 whitespace-pre-wrap">{post.content}</p>
       </div>
 
       {/* Post Image */}
-      {post.image && (
+      {post.image ? (
         <div className="relative">
           <img
             src={post.image}
             alt="Post content"
             className="w-full object-cover max-h-[500px]"
+            loading="lazy"
           />
         </div>
-      )}
+      ) : null}
 
       {/* Post Stats */}
       <div className="px-4 py-3 flex items-center justify-between text-sm text-gray-600">
@@ -80,7 +116,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
             <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-white text-xs">❤️</div>
             <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs">👍</div>
           </div>
-          <span>{post.likes} lượt thích</span>
+          <span>{likeCount} lượt thích</span>
         </div>
         <div className="flex items-center space-x-4">
           <span>{post.comments} bình luận</span>
@@ -99,15 +135,15 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
           <Heart className={`w-5 h-5 ${isLiked ? "fill-current" : ""}`} />
           <span className="hidden sm:inline">Thích</span>
         </button>
-        
+
         <button
-          onClick={() => setShowComments(!showComments)}
+          onClick={handleToggleComments}
           className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all hover:bg-gray-100 text-gray-600"
         >
           <MessageCircle className="w-5 h-5" />
           <span className="hidden sm:inline">Bình luận</span>
         </button>
-        
+
         <button
           onClick={handleShare}
           className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all hover:bg-gray-100 text-gray-600"
@@ -115,9 +151,9 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
           <Share2 className="w-5 h-5" />
           <span className="hidden sm:inline">Chia sẻ</span>
         </button>
-        
+
         <button
-          onClick={() => setIsSaved(!isSaved)}
+          onClick={handleSave}
           className={`p-2 rounded-lg transition-all hover:bg-gray-100 ${
             isSaved ? "text-purple-500" : "text-gray-600"
           }`}
@@ -127,60 +163,66 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
       </div>
 
       {/* Comments Section */}
-      {showComments && (
+      {showComments ? (
         <div className="px-4 pb-4 border-t border-gray-200/50 pt-4">
-          {/* Sample Comments */}
-          <div className="space-y-3 mb-3">
-            <div className="flex space-x-3">
-              <img
-                src="https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=150&h=150&fit=crop"
-                alt="Commenter"
-                className="w-8 h-8 rounded-full object-cover"
-              />
-              <div className="flex-1 bg-gray-100 rounded-2xl px-4 py-2">
-                <p className="font-semibold text-sm">Hoàng Nam</p>
-                <p className="text-sm text-gray-700">Tuyệt vời quá! 🔥</p>
-              </div>
+          {/* Loaded Comments */}
+          {comments.length > 0 ? (
+            <div className="space-y-3 mb-3">
+              {comments.map((comment: any) => {
+                const cAuthor = comment.user_id || comment.author_id || {};
+                const cName = cAuthor.display_name || cAuthor.username || "Ẩn danh";
+                const cAvatar = cAuthor.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(cName)}&background=7c3aed&color=fff&size=32`;
+                return (
+                  <div key={comment._id} className="flex space-x-3">
+                    <img
+                      src={cAvatar}
+                      alt={cName}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                    <div className="flex-1 bg-gray-100 rounded-2xl px-4 py-2">
+                      <p className="font-semibold text-sm">{cName}</p>
+                      <p className="text-sm text-gray-700">{comment.content}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="flex space-x-3">
-              <img
-                src="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&h=150&fit=crop"
-                alt="Commenter"
-                className="w-8 h-8 rounded-full object-cover"
-              />
-              <div className="flex-1 bg-gray-100 rounded-2xl px-4 py-2">
-                <p className="font-semibold text-sm">Mai Linh</p>
-                <p className="text-sm text-gray-700">Đẹp quá đi! Mình cũng muốn đi thử! ❤️</p>
-              </div>
-            </div>
-          </div>
+          ) : null}
 
           {/* Add Comment */}
-          <div className="flex space-x-3">
-            <img
-              src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop"
-              alt="Your avatar"
-              className="w-8 h-8 rounded-full object-cover"
-            />
+          <div className="flex space-x-3 items-center">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+              {(() => {
+                try {
+                  const u = JSON.parse(localStorage.getItem("userData") || "{}");
+                  return (u.display_name || u.username || "U").charAt(0).toUpperCase();
+                } catch {
+                  return "U";
+                }
+              })()}
+            </div>
             <div className="flex-1 flex space-x-2">
               <input
                 type="text"
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder="Viết bình luận..."
-                className="flex-1 px-4 py-2 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500"
-                onKeyPress={(e) => e.key === "Enter" && handleComment()}
+                className="flex-1 px-4 py-2 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSubmitComment();
+                }}
               />
               <button
-                onClick={handleComment}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-full hover:shadow-lg transition-all"
+                onClick={handleSubmitComment}
+                disabled={!commentText.trim()}
+                className="p-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-full hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Gửi
+                <Send className="w-4 h-4" />
               </button>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
-}
+});
