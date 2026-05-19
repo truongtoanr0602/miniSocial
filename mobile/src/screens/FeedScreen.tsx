@@ -67,9 +67,13 @@ export default function FeedScreen({ navigation }: any) {
 
   const renderItem = useCallback(({ item }: { item: IPost }) => (
     <View style={styles.postWrapper}>
-      <PostItem post={item} onRefresh={load} />
+      <PostItem
+        post={item}
+        onRefresh={load}
+        onOpenProfile={(userId) => navigation.navigate("UserProfile", { userId })}
+      />
     </View>
-  ), [load]);
+  ), [load, navigation]);
 
   const keyExtractor = useCallback((item: IPost) => item._id, []);
 
@@ -91,13 +95,15 @@ export default function FeedScreen({ navigation }: any) {
               const avatar = suggestedUser.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(suggestedUser.display_name || suggestedUser.username)}&background=7c3aed&color=fff`;
               return (
                 <View key={suggestedUser._id} style={styles.suggestionCard}>
-                  <Image source={{ uri: avatar }} style={styles.suggestionAvatar} />
-                  <Text style={styles.suggestionName} numberOfLines={1}>
-                    {suggestedUser.display_name || suggestedUser.username}
-                  </Text>
-                  <Text style={styles.suggestionUsername} numberOfLines={1}>
-                    @{suggestedUser.username}
-                  </Text>
+                  <Pressable onPress={() => navigation.navigate("UserProfile", { userId: suggestedUser._id })}>
+                    <Image source={{ uri: avatar }} style={styles.suggestionAvatar} />
+                    <Text style={styles.suggestionName} numberOfLines={1}>
+                      {suggestedUser.display_name || suggestedUser.username}
+                    </Text>
+                    <Text style={styles.suggestionUsername} numberOfLines={1}>
+                      @{suggestedUser.username}
+                    </Text>
+                  </Pressable>
                   <Pressable onPress={() => followUser(suggestedUser._id)} style={styles.followBtnWrapper}>
                     <LinearGradient
                       colors={[palette.primary, palette.accent]}
@@ -113,7 +119,7 @@ export default function FeedScreen({ navigation }: any) {
         </View>
       ) : null}
     </View>
-  ), [suggestions, load, followUser]);
+  ), [suggestions, load, followUser, navigation]);
 
   return (
     <ScreenGradient>

@@ -1,64 +1,88 @@
-import React, { useState, memo, useCallback } from "react";
+import React, { memo, useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   Pressable,
+  StyleSheet,
   Text,
   TextInput,
   View,
-  StyleSheet,
-  Alert,
 } from "react-native";
 import {
+  Bookmark,
   Heart,
   MessageCircle,
-  Share2,
-  Bookmark,
   MoreHorizontal,
+  Share2,
 } from "lucide-react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { api } from "../api/client";
 import { ENDPOINTS } from "../api/endpoints";
+import { useAuth } from "../store/AuthContext";
 import { palette } from "../theme";
-import type { IPost, IUser, IComment } from "../types/models";
+import type { IComment, IPost, IUser } from "../types/models";
 
 interface Props {
   post: IPost;
   onRefresh: () => void;
+  onOpenProfile?: (userId: string) => void;
 }
 
-function PostItem({ post, onRefresh }: Props) {
+function PostItem({ post, onRefresh, onOpenProfile }: Props) {
+  const { user } = useAuth();
   const [text, setText] = useState("");
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<IComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
-
-  // Optimistic UI for like
-  const [isLiked, setIsLiked] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(post.content || "");
+  const [localContent, setLocalContent] = useState(post.content || "");
+  const [isLiked, setIsLiked] = useState(Boolean(post.is_liked));
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [likesCount, setLikesCount] = useState(post.stats?.likes || 0);
+  const [commentsCount, setCommentsCount] = useState(post.stats?.comments || 0);
 
   const author = (
     typeof post.author_id === "object" ? post.author_id : null
   ) as IUser | null;
+  const isOwner = Boolean(author?._id && (user as any)?._id === author._id);
   const authorName = author?.display_name || author?.username || "Người dùng";
   const authorAvatar =
     author?.avatar_url ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}&background=7c3aed&color=fff`;
 
-  const like = async () => {
-    const nextLiked = !isLiked;
+  useEffect(() => {
+    setIsLiked(Boolean(post.is_liked));
+    setLikesCount(post.stats?.likes || 0);
+    setCommentsCount(post.stats?.comments || 0);
+    setLocalContent(post.content || "");
+    setEditText(post.content || "");
+  }, [
+    post._id,
+    post.content,
+    post.is_liked,
+    post.stats?.comments,
+    post.stats?.likes,
+  ]);
+
+  const like = useCallback(async () => {
+    const previousLiked = isLiked;
+    const previousLikes = likesCount;
+    const nextLiked = !previousLiked;
     setIsLiked(nextLiked);
-    setLikesCount((prev) => (nextLiked ? prev + 1 : prev - 1));
+    setLikesCount((prev) => Math.max(0, nextLiked ? prev + 1 : prev - 1));
+
     try {
-      await api.post(ENDPOINTS.REACT_POST(post._id));
-      onRefresh();
+      const res = await api.post(ENDPOINTS.REACT_POST(post._id));
+      const data = res.data.data || res.data;
+      if (typeof data.likes === "number") setLikesCount(data.likes);
+      if (typeof data.is_liked === "boolean") setIsLiked(data.is_liked);
     } catch (e) {
-      // Rollback
-      setIsLiked(isLiked);
-      setLikesCount(likesCount);
+      setIsLiked(previousLiked);
+      setLikesCount(previousLikes);
       console.error("[PostItem] Like error:", e);
     }
-  };
+  }, [isLiked, likesCount, post._id]);
 
   const loadComments = useCallback(async () => {
     try {
@@ -75,36 +99,124 @@ function PostItem({ post, onRefresh }: Props) {
     }
   }, [post._id]);
 
-  const toggleComments = () => {
+  const toggleComments = useCallback(() => {
     const nextShow = !showComments;
     setShowComments(nextShow);
-    if (nextShow) {
-      loadComments();
-    }
-  };
+    if (nextShow) void loadComments();
+  }, [loadComments, showComments]);
 
-  const submitComment = async () => {
+  const submitComment = useCallback(async () => {
     if (!text.trim()) return;
     const commentText = text.trim();
     setText("");
+
     try {
-      // Backend expects: content
       await api.post(ENDPOINTS.POST_COMMENTS(post._id), {
         content: commentText,
       });
-      loadComments();
+      setCommentsCount((prev) => prev + 1);
+      void loadComments();
       onRefresh();
     } catch (e) {
       console.error("[PostItem] Comment error:", e);
     }
-  };
+  }, [loadComments, onRefresh, post._id, text]);
+
+  const saveEdit = useCallback(async () => {
+    const nextContent = editText.trim();
+    if (!nextContent && post.media.length === 0) {
+      Alert.alert("Sửa bài viết", "Nội dung không được để trống.");
+      return;
+    }
+
+    try {
+      await api.patch(ENDPOINTS.UPDATE_POST(post._id), {
+        content: nextContent,
+        visibility: post.visibility,
+      });
+      setLocalContent(nextContent);
+      setIsEditing(false);
+      onRefresh();
+    } catch (e) {
+      console.error("[PostItem] Update error:", e);
+      Alert.alert("Sửa bài viết", "Không thể cập nhật bài viết.");
+    }
+  }, [editText, onRefresh, post._id, post.media.length, post.visibility]);
+
+  const deletePost = useCallback(() => {
+    Alert.alert("Xóa bài viết", "Bạn có chắc chắn muốn xóa bài viết này?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Xóa",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await api.delete(ENDPOINTS.DELETE_POST(post._id));
+            onRefresh();
+          } catch (e) {
+            console.error("[PostItem] Delete error:", e);
+            Alert.alert("Xóa bài viết", "Không thể xóa bài viết.");
+          }
+        },
+      },
+    ]);
+  }, [onRefresh, post._id]);
+
+  const reportPost = useCallback(async () => {
+    try {
+      await api.post(ENDPOINTS.REPORT, {
+        target_type: "post",
+        target_id: post._id,
+        reason: "inappropriate",
+        description: "Reported from mobile app",
+      });
+      Alert.alert("Báo cáo", "Đã gửi báo cáo bài viết.");
+    } catch (e: any) {
+      console.error("[PostItem] Report error:", e);
+      Alert.alert(
+        "Báo cáo",
+        e.response?.data?.message || "Không thể báo cáo bài viết.",
+      );
+    }
+  }, [post._id]);
+
+  const blockAuthor = useCallback(() => {
+    if (!author?._id) return;
+    Alert.alert("Chặn người dùng", `Bạn có muốn chặn ${authorName}?`, [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Chặn",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await api.post(ENDPOINTS.BLOCK_USER(author._id));
+            Alert.alert("Chặn người dùng", "Đã cập nhật trạng thái chặn.");
+            onRefresh();
+          } catch (e) {
+            console.error("[PostItem] Block error:", e);
+            Alert.alert("Chặn người dùng", "Không thể chặn người dùng.");
+          }
+        },
+      },
+    ]);
+  }, [author?._id, authorName, onRefresh]);
 
   const handleMorePress = useCallback(() => {
-    Alert.alert(
-      "Tùy chọn bài viết",
-      "Các tùy chọn bổ sung sẽ sớm được cập nhật.",
-    );
-  }, []);
+    if (isOwner) {
+      Alert.alert("Tùy chọn bài viết", undefined, [
+        { text: "Sửa bài viết", onPress: () => setIsEditing(true) },
+        { text: "Xóa bài viết", style: "destructive", onPress: deletePost },
+        { text: "Hủy", style: "cancel" },
+      ]);
+      return;
+    }
+
+    Alert.alert("Tùy chọn bài viết", undefined, [
+      { text: "Báo cáo bài viết", onPress: reportPost },
+      { text: "Chặn người dùng", style: "destructive", onPress: blockAuthor },
+      { text: "Hủy", style: "cancel" },
+    ]);
+  }, [blockAuthor, deletePost, isOwner, reportPost]);
 
   const handleShare = useCallback(() => {
     Alert.alert("Chia sẻ", "Tính năng chia sẻ bài viết đang được phát triển.");
@@ -121,9 +233,11 @@ function PostItem({ post, onRefresh }: Props) {
 
   return (
     <View style={styles.cardContainer}>
-      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.userInfoRow}>
+        <Pressable
+          onPress={() => author?._id && onOpenProfile?.(author._id)}
+          style={styles.userInfoRow}
+        >
           <Image
             source={{ uri: authorAvatar }}
             style={styles.avatar}
@@ -133,7 +247,7 @@ function PostItem({ post, onRefresh }: Props) {
             <Text style={styles.displayName}>{authorName}</Text>
             <View style={styles.metaRow}>
               <Text style={styles.username}>@{author?.username || "user"}</Text>
-              <Text style={styles.bullet}>•</Text>
+              <Text style={styles.bullet}>-</Text>
               <Text style={styles.timeText}>
                 {new Date(post.created_at || Date.now()).toLocaleDateString(
                   "vi-VN",
@@ -141,20 +255,43 @@ function PostItem({ post, onRefresh }: Props) {
               </Text>
             </View>
           </View>
-        </View>
+        </Pressable>
         <Pressable onPress={handleMorePress} style={styles.moreBtn}>
           <MoreHorizontal color={palette.muted} size={20} />
         </Pressable>
       </View>
 
-      {/* Content */}
-      {post.content ? (
+      {isEditing ? (
+        <View style={styles.editContainer}>
+          <TextInput
+            value={editText}
+            onChangeText={setEditText}
+            multiline
+            style={styles.editInput}
+            placeholder="Cập nhật nội dung bài viết..."
+            placeholderTextColor={palette.muted}
+          />
+          <View style={styles.editActions}>
+            <Pressable
+              onPress={() => {
+                setEditText(localContent);
+                setIsEditing(false);
+              }}
+              style={styles.editCancelBtn}
+            >
+              <Text style={styles.editCancelText}>Hủy</Text>
+            </Pressable>
+            <Pressable onPress={saveEdit} style={styles.editSaveBtn}>
+              <Text style={styles.editSaveText}>Lưu</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : localContent ? (
         <View style={styles.contentContainer}>
-          <Text style={styles.contentText}>{post.content}</Text>
+          <Text style={styles.contentText}>{localContent}</Text>
         </View>
       ) : null}
 
-      {/* Media */}
       {post.media && post.media.length > 0 ? (
         <Image
           source={{ uri: post.media[0].url }}
@@ -163,7 +300,6 @@ function PostItem({ post, onRefresh }: Props) {
         />
       ) : null}
 
-      {/* Stats */}
       <View style={styles.statsRow}>
         <View style={styles.likesStats}>
           <View style={styles.badgeRow}>
@@ -173,7 +309,7 @@ function PostItem({ post, onRefresh }: Props) {
                 { backgroundColor: palette.danger, zIndex: 2 },
               ]}
             >
-              <Text style={styles.emojiText}>❤️</Text>
+              <Text style={styles.emojiText}>♥</Text>
             </View>
             <View
               style={[
@@ -181,22 +317,17 @@ function PostItem({ post, onRefresh }: Props) {
                 { backgroundColor: palette.accent, marginLeft: -6, zIndex: 1 },
               ]}
             >
-              <Text style={styles.emojiText}>👍</Text>
+              <Text style={styles.emojiText}>+</Text>
             </View>
           </View>
           <Text style={styles.statsText}>{likesCount} lượt thích</Text>
         </View>
         <View style={styles.otherStats}>
-          <Text style={styles.statsText}>
-            {post.stats?.comments || 0} bình luận
-          </Text>
-          <Text style={styles.statsText}>
-            {post.stats?.shares || 0} chia sẻ
-          </Text>
+          <Text style={styles.statsText}>{commentsCount} bình luận</Text>
+          <Text style={styles.statsText}>{post.stats?.shares || 0} chia sẻ</Text>
         </View>
       </View>
 
-      {/* Actions */}
       <View style={styles.actionButtonsRow}>
         <Pressable onPress={like} style={styles.actionBtn}>
           <Heart
@@ -227,7 +358,6 @@ function PostItem({ post, onRefresh }: Props) {
         </Pressable>
       </View>
 
-      {/* Comments Section */}
       {showComments ? (
         <View style={styles.commentsSection}>
           <View style={styles.commentInputRow}>
@@ -242,6 +372,7 @@ function PostItem({ post, onRefresh }: Props) {
                 value={text}
                 onChangeText={setText}
                 placeholder="Viết bình luận..."
+                placeholderTextColor={palette.muted}
                 style={styles.input}
                 onSubmitEditing={submitComment}
               />
@@ -259,32 +390,40 @@ function PostItem({ post, onRefresh }: Props) {
           </View>
 
           {loadingComments ? (
-            <Text style={styles.loadingCommentsText}>
-              Đang tải bình luận...
-            </Text>
+            <Text style={styles.loadingCommentsText}>Đang tải bình luận...</Text>
           ) : comments.length === 0 ? (
             <Text style={styles.noCommentsText}>
-              Chưa có bình luận nào. Hãy là người đầu tiên! 💬
+              Chưa có bình luận nào. Hãy là người đầu tiên.
             </Text>
           ) : (
-            comments.map((c) => {
-              const cAuthor = (
-                typeof c.author_id === "object" ? c.author_id : null
+            comments.map((comment) => {
+              const commentAuthor = (
+                typeof comment.author_id === "object"
+                  ? comment.author_id
+                  : null
               ) as IUser | null;
-              const cAuthorName =
-                cAuthor?.display_name || cAuthor?.username || "Người dùng";
-              const cAuthorAvatar =
-                cAuthor?.avatar_url ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(cAuthorName)}&background=7c3aed&color=fff`;
+              const commentAuthorName =
+                commentAuthor?.display_name ||
+                commentAuthor?.username ||
+                "Người dùng";
+              const commentAuthorAvatar =
+                commentAuthor?.avatar_url ||
+                `https://ui-avatars.com/api/?name=${encodeURIComponent(commentAuthorName)}&background=7c3aed&color=fff`;
               return (
-                <View key={c._id} style={styles.commentRow}>
-                  <Image
-                    source={{ uri: cAuthorAvatar }}
-                    style={styles.commentRowAvatar}
-                  />
+                <View key={comment._id} style={styles.commentRow}>
+                  <Pressable
+                    onPress={() => commentAuthor?._id && onOpenProfile?.(commentAuthor._id)}
+                  >
+                    <Image
+                      source={{ uri: commentAuthorAvatar }}
+                      style={styles.commentRowAvatar}
+                    />
+                  </Pressable>
                   <View style={styles.commentBubble}>
-                    <Text style={styles.commentAuthorName}>{cAuthorName}</Text>
-                    <Text style={styles.commentContent}>{c.content}</Text>
+                    <Text style={styles.commentAuthorName}>
+                      {commentAuthorName}
+                    </Text>
+                    <Text style={styles.commentContent}>{comment.content}</Text>
                   </View>
                 </View>
               );
@@ -299,13 +438,13 @@ function PostItem({ post, onRefresh }: Props) {
 const styles = StyleSheet.create({
   cardContainer: {
     backgroundColor: palette.card,
-    borderRadius: 24,
+    borderRadius: 16,
     marginBottom: 16,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.05,
-    shadowRadius: 20,
+    shadowRadius: 16,
     elevation: 3,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.5)",
@@ -316,7 +455,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     padding: 16,
   },
-  userInfoRow: { flexDirection: "row", alignItems: "center" },
+  userInfoRow: { flexDirection: "row", alignItems: "center", flex: 1 },
   avatar: {
     width: 48,
     height: 48,
@@ -324,7 +463,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "rgba(147, 51, 234, 0.2)",
   },
-  nameContainer: { marginLeft: 12 },
+  nameContainer: { marginLeft: 12, flex: 1 },
   displayName: { fontWeight: "700", color: palette.ink, fontSize: 16 },
   metaRow: { flexDirection: "row", alignItems: "center" },
   username: { color: palette.muted, fontSize: 12 },
@@ -333,6 +472,38 @@ const styles = StyleSheet.create({
   moreBtn: { padding: 8 },
   contentContainer: { paddingHorizontal: 16, paddingBottom: 12 },
   contentText: { color: palette.ink, fontSize: 15, lineHeight: 22 },
+  editContainer: { paddingHorizontal: 16, paddingBottom: 12 },
+  editInput: {
+    minHeight: 88,
+    borderRadius: 12,
+    backgroundColor: "#f3f4f6",
+    color: palette.ink,
+    fontSize: 15,
+    lineHeight: 22,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    textAlignVertical: "top",
+  },
+  editActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 10,
+  },
+  editCancelBtn: {
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: "#f3f4f6",
+  },
+  editCancelText: { color: palette.ink, fontWeight: "600" },
+  editSaveBtn: {
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: palette.primary,
+  },
+  editSaveText: { color: "#fff", fontWeight: "700" },
   mediaImage: { width: "100%", height: 300, backgroundColor: "#f3f4f6" },
   statsRow: {
     flexDirection: "row",
@@ -349,7 +520,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  emojiText: { fontSize: 10 },
+  emojiText: { color: "#fff", fontSize: 11, fontWeight: "700" },
   statsText: { color: palette.muted, fontSize: 13 },
   otherStats: { flexDirection: "row", alignItems: "center", gap: 12 },
   actionButtonsRow: {

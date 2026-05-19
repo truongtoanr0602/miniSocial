@@ -337,6 +337,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       {
         token,
         user: {
+          _id: user._id,
           id: user._id,
           username: user.username,
           display_name: user.display_name,
@@ -444,6 +445,7 @@ export const googleLogin = async (
       {
         token,
         user: {
+          _id: user._id,
           id: user._id,
           username: user.username,
           display_name: user.display_name,

@@ -11,7 +11,7 @@ export type MainTabParamList = {
   Feed: undefined;
   Search: undefined;
   Notifications: undefined;
-  Messages: undefined;
+  Messages: { initialConversationId?: string } | undefined;
   Profile: undefined;
   Settings: undefined;
 };
@@ -36,4 +36,5 @@ export type ProfileStackParamList = {
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
+  UserProfile: { userId: string };
 };

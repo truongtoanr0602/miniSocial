@@ -1,7 +1,6 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Pressable, Text } from "react-native";
 import { useAuth } from "../store/AuthContext";
 import { palette } from "../theme";
 import { Home, Search, User, Bell, MessageCircle, Settings } from "lucide-react-native";
@@ -26,8 +25,6 @@ const sharedOptions = {
 };
 
 function MainTabs() {
-  const { logout } = useAuth();
-
   return (
     <Tab.Navigator
       screenOptions={{
@@ -44,13 +41,6 @@ function MainTabs() {
         options={{
           title: "Mini Social",
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
-          headerRight: () => (
-            <Pressable onPress={logout} style={{ marginRight: 14 }}>
-              <Text style={{ color: palette.primary, fontWeight: "700" }}>
-                Logout
-              </Text>
-            </Pressable>
-          ),
         }}
       />
       <Tab.Screen 
@@ -101,11 +91,18 @@ export function Navigation() {
           <Stack.Screen name="Register" component={RegisterScreen} />
         </>
       ) : (
-        <Stack.Screen
-          name="Main"
-          component={MainTabs}
-          options={{ headerShown: false }}
-        />
+        <>
+          <Stack.Screen
+            name="Main"
+            component={MainTabs}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="UserProfile"
+            component={ProfileScreen}
+            options={{ title: "Trang cá nhân" }}
+          />
+        </>
       )}
     </Stack.Navigator>
   );

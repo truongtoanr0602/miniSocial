@@ -1,151 +1,198 @@
-import type { Request, Response } from 'express';
-import PostModel from '../models/postModel.js';
-// Import các Model khác (Bạn nhớ tạo các file này nếu chưa có nhé)
-// import CommentModel from '../models/commentModel.js';
-// import NotificationModel from '../models/notificationModel.js';
-import { uploadAndCompressImage } from '../services/minioService.js';
+import type { Request, Response } from "express";
+import mongoose from "mongoose";
+import PostModel from "../models/postModel.js";
+import Reaction from "../models/Reaction.js";
+import { uploadAndCompressImage } from "../services/minioService.js";
 import { successResponse, errorResponse } from "../utils/response.js";
-// import { emitNotification } from "../services/socketService.js";
 
-// ==========================================
-// HÀM TIỆN ÍCH
-// ==========================================
-// Tự động tìm các từ khóa có dấu # trong bài viết
 function extractHashtags(text: string): string[] {
   if (!text) return [];
   const matches = text.match(/#[a-zA-Z0-9_]+/g) || [];
-  return [...new Set(matches.map((t) => t.toLowerCase()))];
+  return [...new Set(matches.map((tag) => tag.toLowerCase()))];
 }
 
-// ==========================================
-// 1. API TẠO BÀI VIẾT (Tích hợp MinIO + WebP)
-// ==========================================
+function parseHashtags(value: unknown, content: string): string[] {
+  if (!value) return extractHashtags(content);
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value !== "string") return [];
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) return parsed.map(String);
+  } catch {
+    return value
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+async function addViewerState<T extends { _id: unknown }>(
+  posts: T[],
+  userId?: string,
+) {
+  if (!userId || posts.length === 0) return posts.map((post) => ({ ...post, is_liked: false }));
+
+  const postIds = posts.map((post) => new mongoose.Types.ObjectId(String(post._id)));
+  const reactions = await Reaction.find({
+    post_id: { $in: postIds },
+    user_id: new mongoose.Types.ObjectId(userId),
+    type: "like",
+  })
+    .select("post_id")
+    .lean();
+  const likedPostIds = new Set(reactions.map((reaction) => reaction.post_id.toString()));
+
+  return posts.map((post) => ({
+    ...post,
+    is_liked: likedPostIds.has(String(post._id)),
+  }));
+}
+
 export const createPost = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { content, visibility } = req.body;
-    let { hashtags } = req.body;
-    
-    const author_id = (req as any).userId; 
+    const { content = "", visibility = "public" } = req.body;
+    const author_id = (req as any).userId;
+    const mediaItems: { url: string; type: "image" | "video"; alt_text?: string }[] = [];
 
-    // Xử lý Hashtag: Nếu người dùng gửi lên thì dùng, không thì tự động quét trong nội dung chữ
-    let parsedHashtags: string[] = [];
-    if (hashtags) {
-        try {
-            parsedHashtags = JSON.parse(hashtags);
-        } catch {
-            parsedHashtags = typeof hashtags === 'string' ? hashtags.split(',').map(h => h.trim()) : hashtags;
-        }
-    } else if (content) {
-        parsedHashtags = extractHashtags(content);
-    }
-
-    // Xử lý File Media (Nén ảnh WebP)
-    const mediaItems: { url: string, type: 'image' | 'video', alt_text?: string }[] = [];
-
-    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+    if (req.files && Array.isArray(req.files)) {
       for (const file of req.files) {
-        const isVideo = file.mimetype.startsWith('video/');
-        
-        if (isVideo) {
-            // Xử lý video ở đây sau
-        } else {
-            // Nén sang WebP bằng Sharp rồi đẩy lên MinIO
-            const url = await uploadAndCompressImage(file.buffer);
-            mediaItems.push({ url, type: 'image' });
+        if (file.mimetype.startsWith("video/")) {
+          continue;
         }
+        const url = await uploadAndCompressImage(file.buffer);
+        mediaItems.push({ url, type: "image" });
       }
     }
 
-    if (!content && mediaItems.length === 0) {
+    const trimmedContent = String(content).trim();
+    if (!trimmedContent && mediaItems.length === 0) {
       errorResponse(req, res, "post.MISSING_CONTENT", 400, "MISSING_CONTENT");
       return;
     }
 
-    // Lưu vào Database
     const post = await PostModel.create({
       author_id,
-      content,
-      hashtags: parsedHashtags || [],
+      content: trimmedContent,
+      hashtags: parseHashtags(req.body.hashtags, trimmedContent),
       media: mediaItems,
-      visibility: visibility || 'public'
+      visibility: ["public", "friends", "private"].includes(visibility) ? visibility : "public",
     });
 
-    // Populate thông tin người đăng để trả về Frontend hiện ngay lập tức
     const populatedPost = await PostModel.findById(post._id).populate(
       "author_id",
-      "username display_name avatar_url" // Trả về các trường thông tin cơ bản của User
+      "username display_name avatar_url",
     );
 
-    successResponse(req, res, populatedPost, "post.CREATED", 201, "CREATED"); 
-
+    successResponse(req, res, populatedPost, "post.CREATED", 201, "CREATED");
   } catch (error: any) {
-    console.error("Lỗi tạo bài viết:", error);
+    console.error("Error creating post:", error);
     errorResponse(req, res, "post.CREATE_FAILED", 500, "CREATE_FAILED");
   }
 };
 
-// ==========================================
-// 2. API LẤY BẢNG TIN (NEWSFEED)
-// ==========================================
 export const getNewsfeed = async (req: Request, res: Response): Promise<void> => {
-    try {
-        // Lấy danh sách bài viết mới nhất
-        const posts = await PostModel.find({ visibility: { $ne: 'private' } }) // Không lấy bài private của người khác
-            .sort({ created_at: -1 })
-            .populate("author_id", "username display_name avatar_url")
-            .lean();
+  try {
+    const userId = (req as any).userId as string | undefined;
+    const posts = await PostModel.find({ visibility: { $ne: "private" } })
+      .sort({ created_at: -1 })
+      .populate("author_id", "username display_name avatar_url")
+      .lean();
 
-        // 💡 Tạm thời comment logic lấy Comment để test post trước. 
-        // Khi nào code xong CommentModel thì bạn mở ra nhé.
-        /*
-        const postIds = posts.map((p) => p._id);
-        const comments = await CommentModel.find({ post: { $in: postIds } })
-            .populate("user", "username display_name avatarUrl")
-            .sort({ created_at: 1 })
-            .lean();
+    successResponse(
+      req,
+      res,
+      await addViewerState(posts, userId),
+      "post.GET_SUCCESS",
+      200,
+      "GET_SUCCESS",
+    );
+  } catch (error: any) {
+    console.error("Error fetching newsfeed:", error);
+    errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
+  }
+};
 
-        const commentsByPost = comments.reduce((acc: any, c: any) => {
-            const key = String(c.post);
-            if (!acc[key]) acc[key] = [];
-            acc[key].push(c);
-            return acc;
-        }, {});
+export const updatePost = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).userId as string;
+    const { postId } = req.params as { postId: string };
+    const { content, visibility } = req.body;
 
-        const merged = posts.map((post) => ({
-            ...post,
-            comments: commentsByPost[String(post._id)] || [],
-        }));
-        */
-
-        successResponse(req, res, posts, "post.GET_SUCCESS", 200, "GET_SUCCESS");
-    } catch (error: any) {
-        console.error("Lỗi lấy bảng tin:", error);
-        errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      errorResponse(req, res, "post.INVALID_ID", 400, "INVALID_ID");
+      return;
     }
-}
 
-// ==========================================
-// 3. API TƯƠNG TÁC (REACT / LIKE)
-// ==========================================
-export const reactToPost = async (req: Request, res: Response): Promise<void> => {
-    // Logic này sẽ phụ thuộc vào việc bạn lưu reactions vào một collection riêng
-    // hay lưu trực tiếp vào mảng trong PostSchema. 
-    // Tạm thời mình setup khung chuẩn để bạn làm tiếp.
-    try {
-        const { postId } = req.params;
-        const post = await PostModel.findById(postId);
-        
-        if (!post) {
-            errorResponse(req, res, "post.NOT_FOUND", 404, "NOT_FOUND");
-            return;
-        }
-
-        // Tăng chỉ số stats.likes lên 1 (Dựa theo Schema của bạn)
-        post.stats.likes += 1;
-        await post.save();
-
-        successResponse(req, res, { likes: post.stats.likes }, "post.REACT_SUCCESS", 200, "REACT_SUCCESS");
-    } catch (error: any) {
-        errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
+    const post = await PostModel.findById(postId);
+    if (!post) {
+      errorResponse(req, res, "post.NOT_FOUND", 404, "NOT_FOUND");
+      return;
     }
-}
+
+    if (post.author_id.toString() !== userId) {
+      errorResponse(req, res, "post.NOT_AUTHOR", 403, "NOT_AUTHOR");
+      return;
+    }
+
+    if (content !== undefined) {
+      const trimmedContent = String(content).trim();
+      if (!trimmedContent && post.media.length === 0) {
+        errorResponse(req, res, "post.MISSING_CONTENT", 400, "MISSING_CONTENT");
+        return;
+      }
+      post.content = trimmedContent;
+      post.hashtags = extractHashtags(trimmedContent);
+    }
+
+    if (visibility && ["public", "friends", "private"].includes(visibility)) {
+      post.visibility = visibility;
+    }
+
+    await post.save();
+    const populatedPost = await PostModel.findById(post._id).populate(
+      "author_id",
+      "username display_name avatar_url",
+    );
+
+    successResponse(req, res, populatedPost, "post.UPDATED", 200, "UPDATED");
+  } catch (error: any) {
+    console.error("Error updating post:", error);
+    errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
+  }
+};
+
+export const deletePost = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).userId as string;
+    const { postId } = req.params as { postId: string };
+
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      errorResponse(req, res, "post.INVALID_ID", 400, "INVALID_ID");
+      return;
+    }
+
+    const post = await PostModel.findById(postId);
+    if (!post) {
+      errorResponse(req, res, "post.NOT_FOUND", 404, "NOT_FOUND");
+      return;
+    }
+
+    if (post.author_id.toString() !== userId) {
+      errorResponse(req, res, "post.NOT_AUTHOR", 403, "NOT_AUTHOR");
+      return;
+    }
+
+    await Promise.all([
+      PostModel.findByIdAndDelete(postId),
+      Reaction.deleteMany({ post_id: new mongoose.Types.ObjectId(postId) }),
+    ]);
+
+    successResponse(req, res, { postId }, "post.DELETED", 200, "DELETED");
+  } catch (error: any) {
+    console.error("Error deleting post:", error);
+    errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
+  }
+};

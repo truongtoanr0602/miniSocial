@@ -9,6 +9,7 @@ interface JwtPayload {
 
 interface CurrentUser {
   _id: string;
+  id?: string;
   username: string;
   display_name: string;
   email?: string;
@@ -41,7 +42,11 @@ export function useCurrentUser(): CurrentUser | null {
       const userData = localStorage.getItem("userData");
       if (!userData) return null;
 
-      return JSON.parse(userData) as CurrentUser;
+      const parsed = JSON.parse(userData) as CurrentUser;
+      return {
+        ...parsed,
+        _id: parsed._id || parsed.id || "",
+      };
     } catch {
       // Token không hợp lệ hoặc userData bị corrupt
       localStorage.removeItem("userToken");

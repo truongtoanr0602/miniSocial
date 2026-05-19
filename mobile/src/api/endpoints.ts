@@ -36,6 +36,8 @@ export const ENDPOINTS = {
   FEED: "/post/feed",
   EXPLORE: "/post/explore",
   CREATE_POST: "/post/createPost",
+  UPDATE_POST: (postId: string) => `/post/${postId}`,
+  DELETE_POST: (postId: string) => `/post/${postId}`,
   REACT_POST: (postId: string) => `/post/${postId}/react`,
 
   // Comments
@@ -59,4 +61,7 @@ export const ENDPOINTS = {
 
   // Search
   SEARCH: "/search",
+
+  // Reports
+  REPORT: "/report",
 } as const;

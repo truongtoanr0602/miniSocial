@@ -42,15 +42,23 @@ export interface IPost {
   };
   created_at: string;
   updated_at: string;
+  is_liked?: boolean;
 }
 
 // ─── Comment ───
 export interface IComment {
   _id: string;
   post_id: string;
-  user: IUser | string;
+  author_id: IUser | string;
+  parent_id?: string | null;
   content: string;
+  stats?: {
+    likes: number;
+    replies: number;
+    is_deleted: boolean;
+  };
   created_at: string;
+  updated_at?: string;
 }
 
 // ─── Notification ───

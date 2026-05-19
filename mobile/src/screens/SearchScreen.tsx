@@ -1,35 +1,35 @@
-import React, { useState, useCallback, useRef } from "react";
-import { Pressable, Text, TextInput, View, StyleSheet } from "react-native";
+import React, { useCallback, useRef, useState } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import { Search as SearchIcon, UserPlus } from "lucide-react-native";
+import { MessageCircle, Search as SearchIcon } from "lucide-react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { api } from "../api/client";
 import { ENDPOINTS } from "../api/endpoints";
-import { palette } from "../theme";
-import { ScreenGradient } from "../components/common/ScreenGradient";
 import PostItem from "../components/PostItem";
-import type { IPost, IUser } from "../types/models";
+import { ScreenGradient } from "../components/common/ScreenGradient";
+import { useAuth } from "../store/AuthContext";
+import { palette } from "../theme";
+import type { IPost } from "../types/models";
 
 const FlashListAny = FlashList as any;
 
 type SearchResult = {
   _id: string;
   type: "user" | "post";
-  // User fields
   username?: string;
   display_name?: string;
   avatar_url?: string;
   bio?: string;
-  // Post fields
   content?: string;
-  author_id?: any;
+  author_id?: unknown;
   stats?: { likes: number; comments: number; shares: number };
   media?: { url: string; type: string }[];
   created_at?: string;
 };
 
-export default function SearchScreen() {
+export default function SearchScreen({ navigation }: any) {
+  const { user } = useAuth();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,12 +40,21 @@ export default function SearchScreen() {
       setResults([]);
       return;
     }
+
     try {
       setLoading(true);
-      const { data } = await api.get(`${ENDPOINTS.SEARCH}?q=${encodeURIComponent(query)}`);
+      const { data } = await api.get(
+        `${ENDPOINTS.SEARCH}?q=${encodeURIComponent(query)}`,
+      );
       const raw = data.data || data;
-      const users = (raw.users || []).map((u: any) => ({ ...u, type: "user" as const }));
-      const posts = (raw.posts || []).map((p: any) => ({ ...p, type: "post" as const }));
+      const users = (raw.users || []).map((item: any) => ({
+        ...item,
+        type: "user" as const,
+      }));
+      const posts = (raw.posts || []).map((item: any) => ({
+        ...item,
+        type: "post" as const,
+      }));
       setResults([...users, ...posts]);
     } catch (e) {
       console.error("[SearchScreen] Search error:", e);
@@ -54,65 +63,104 @@ export default function SearchScreen() {
     }
   }, []);
 
-  const onSearchChange = useCallback((text: string) => {
-    setQ(text);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      submit(text);
-    }, 500);
-  }, [submit]);
+  const onSearchChange = useCallback(
+    (text: string) => {
+      setQ(text);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        void submit(text);
+      }, 500);
+    },
+    [submit],
+  );
 
-  const followUser = useCallback(async (userId: string) => {
-    try {
-      await api.post(ENDPOINTS.TOGGLE_FOLLOW(userId));
-      // Remove from results after following
-      setResults((prev) => prev.filter((r) => r._id !== userId));
-    } catch (e) {
-      console.error("[SearchScreen] Follow error:", e);
-    }
-  }, []);
+  const startConversation = useCallback(
+    async (userId: string) => {
+      try {
+        const res = await api.post(ENDPOINTS.CREATE_CONVERSATION(userId));
+        const conversation = res.data.data || res.data;
+        const conversationId = conversation._id || conversation.conversation?._id;
+        navigation.navigate("Messages", { initialConversationId: conversationId });
+      } catch (e) {
+        console.error("[SearchScreen] Create conversation error:", e);
+      }
+    },
+    [navigation],
+  );
 
-  const renderItem = useCallback(({ item }: { item: SearchResult }) => {
-    if (item.type === "user") {
-      const displayName = item.display_name || item.username || "Người dùng";
-      const avatarUri = item.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7c3aed&color=fff`;
-      return (
-        <View style={styles.userRow}>
-          <Image source={{ uri: avatarUri }} style={styles.userAvatar} />
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{displayName}</Text>
-            <Text style={styles.userHandle}>@{item.username}</Text>
-            {item.bio ? <Text style={styles.userBio} numberOfLines={1}>{item.bio}</Text> : null}
-          </View>
-          <Pressable onPress={() => followUser(item._id)} style={styles.followBtnWrapper}>
-            <LinearGradient
-              colors={[palette.primary, palette.accent]}
-              style={styles.followBtn}
-            >
-              <UserPlus color="#fff" size={14} style={styles.followIcon} />
-              <Text style={styles.followText}>Theo dõi</Text>
-            </LinearGradient>
+  const renderItem = useCallback(
+    ({ item }: { item: SearchResult }) => {
+      if (item.type === "user") {
+        const displayName = item.display_name || item.username || "Người dùng";
+        const avatarUri =
+          item.avatar_url ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7c3aed&color=fff`;
+        const isCurrentUser = item._id === (user as any)?._id;
+
+        return (
+          <Pressable
+            onPress={() =>
+              isCurrentUser
+                ? navigation.navigate("Profile")
+                : navigation.navigate("UserProfile", { userId: item._id })
+            }
+            style={styles.userRow}
+          >
+            <Image source={{ uri: avatarUri }} style={styles.userAvatar} />
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>{displayName}</Text>
+              <Text style={styles.userHandle}>@{item.username}</Text>
+              {item.bio ? (
+                <Text style={styles.userBio} numberOfLines={1}>
+                  {item.bio}
+                </Text>
+              ) : null}
+            </View>
+            {isCurrentUser ? (
+              <View style={styles.selfBadge}>
+                <Text style={styles.selfText}>Bạn</Text>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => startConversation(item._id)}
+                style={styles.messageBtnWrapper}
+              >
+                <LinearGradient
+                  colors={[palette.primary, palette.accent]}
+                  style={styles.messageBtn}
+                >
+                  <MessageCircle color="#fff" size={14} style={styles.messageIcon} />
+                  <Text style={styles.messageText}>Nhắn tin</Text>
+                </LinearGradient>
+              </Pressable>
+            )}
           </Pressable>
+        );
+      }
+
+      return (
+        <View style={styles.postResult}>
+          <PostItem
+            post={item as unknown as IPost}
+            onRefresh={() => submit(q)}
+            onOpenProfile={(userId) => navigation.navigate("UserProfile", { userId })}
+          />
         </View>
       );
-    }
+    },
+    [navigation, q, startConversation, submit, user],
+  );
 
-    // Post result
-    return (
-      <View style={styles.postResult}>
-        <PostItem post={item as any as IPost} onRefresh={() => submit(q)} />
-      </View>
-    );
-  }, [followUser, submit, q]);
+  const keyExtractor = useCallback(
+    (item: SearchResult) => `${item.type}_${item._id}`,
+    [],
+  );
 
-  const keyExtractor = useCallback((item: SearchResult) => `${item.type}_${item._id}`, []);
-
-  const usersCount = results.filter((r) => r.type === "user").length;
-  const postsCount = results.filter((r) => r.type === "post").length;
+  const usersCount = results.filter((item) => item.type === "user").length;
+  const postsCount = results.filter((item) => item.type === "post").length;
 
   const ListHeader = () => (
     <View style={styles.headerContainer}>
-      {/* Search Input */}
       <View style={styles.searchCard}>
         <Text style={styles.searchTitle}>Tìm kiếm</Text>
         <View style={styles.searchInputWrapper}>
@@ -120,7 +168,7 @@ export default function SearchScreen() {
           <TextInput
             value={q}
             onChangeText={onSearchChange}
-            placeholder="Tìm kiếm người dùng hoặc #hashtag"
+            placeholder="Tìm kiếm người dùng, bài viết, hashtag"
             style={styles.searchInput}
             placeholderTextColor={palette.muted}
             autoCapitalize="none"
@@ -128,7 +176,6 @@ export default function SearchScreen() {
         </View>
       </View>
 
-      {/* Results Summary */}
       {results.length > 0 ? (
         <View style={styles.summaryRow}>
           {usersCount > 0 ? (
@@ -181,7 +228,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  searchTitle: { fontSize: 24, fontWeight: "bold", color: palette.primary, marginBottom: 12 },
+  searchTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: palette.primary,
+    marginBottom: 12,
+  },
   searchInputWrapper: {
     flexDirection: "row",
     alignItems: "center",
@@ -219,15 +271,23 @@ const styles = StyleSheet.create({
   userName: { fontWeight: "700", color: palette.ink, fontSize: 15 },
   userHandle: { color: palette.muted, fontSize: 13, marginTop: 2 },
   userBio: { color: palette.muted, fontSize: 12, marginTop: 2 },
-  followBtnWrapper: { marginLeft: 8 },
-  followBtn: {
+  messageBtnWrapper: { marginLeft: 8 },
+  messageBtn: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
   },
-  followIcon: { marginRight: 4 },
-  followText: { color: "#fff", fontWeight: "600", fontSize: 12 },
+  messageIcon: { marginRight: 4 },
+  messageText: { color: "#fff", fontWeight: "600", fontSize: 12 },
+  selfBadge: {
+    backgroundColor: "#f3f4f6",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginLeft: 8,
+  },
+  selfText: { color: palette.muted, fontWeight: "600", fontSize: 12 },
   postResult: { marginBottom: 8 },
 });

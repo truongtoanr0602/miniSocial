@@ -1,11 +1,23 @@
 import { useEffect } from "react";
-import { Home, Search, Bell, User, MessageCircle, PlusSquare, Settings, LogOut } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import {
+  Bell,
+  Home,
+  MessageCircle,
+  PlusSquare,
+  Search,
+  Settings,
+  User,
+} from "lucide-react";
 import { useNotifications } from "../../hooks/useNotifications";
-import { authService } from "../../services/authService";
-import { connectSocket, disconnectSocket } from "../../services/socketService";
+import { connectSocket } from "../../services/socketService";
 
-type ViewType = "feed" | "profile" | "notifications" | "messages" | "search" | "settings";
+type ViewType =
+  | "feed"
+  | "profile"
+  | "notifications"
+  | "messages"
+  | "search"
+  | "settings";
 
 interface NavigationProps {
   onViewChange: (view: ViewType) => void;
@@ -13,28 +25,21 @@ interface NavigationProps {
   onCreatePost: () => void;
 }
 
-export function Navigation({ onViewChange, activeView, onCreatePost }: NavigationProps) {
-  const navigate = useNavigate();
+export function Navigation({
+  onViewChange,
+  activeView,
+  onCreatePost,
+}: NavigationProps) {
   const { unreadCount } = useNotifications();
 
-  // Kết nối socket khi component mount (user đã đăng nhập)
   useEffect(() => {
     connectSocket();
-    return () => {
-      // Không disconnect ở đây vì Navigation unmount ≠ logout
-    };
   }, []);
-
-  const handleLogout = () => {
-    authService.logout(); // Xóa token + userData + disconnect socket
-    navigate("/login");
-  };
 
   return (
     <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200/50 shadow-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
           <div className="flex items-center space-x-2">
             <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
               <span className="text-white text-xl font-bold">S</span>
@@ -43,8 +48,7 @@ export function Navigation({ onViewChange, activeView, onCreatePost }: Navigatio
               Social Mini
             </h1>
           </div>
-          
-          {/* Search Bar */}
+
           <div className="hidden md:flex flex-1 max-w-md mx-8">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -57,8 +61,7 @@ export function Navigation({ onViewChange, activeView, onCreatePost }: Navigatio
               />
             </div>
           </div>
-          
-          {/* Navigation Icons */}
+
           <div className="flex items-center space-x-1 sm:space-x-2">
             <button
               onClick={() => onViewChange("feed")}
@@ -67,7 +70,7 @@ export function Navigation({ onViewChange, activeView, onCreatePost }: Navigatio
                   ? "bg-purple-100 text-purple-600"
                   : "hover:bg-gray-100 text-gray-600"
               }`}
-              title="Trang chủ"
+              title="Trang chu"
             >
               <Home className="w-6 h-6" />
             </button>
@@ -94,7 +97,7 @@ export function Navigation({ onViewChange, activeView, onCreatePost }: Navigatio
               title="Tin nhắn"
             >
               <MessageCircle className="w-6 h-6" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             </button>
 
             <button
@@ -129,7 +132,7 @@ export function Navigation({ onViewChange, activeView, onCreatePost }: Navigatio
                   ? "bg-purple-100 text-purple-600"
                   : "hover:bg-gray-100 text-gray-600"
               }`}
-              title="Trang cá nhân"
+              title="Trang ca nhan"
             >
               <User className="w-6 h-6" />
             </button>
@@ -144,14 +147,6 @@ export function Navigation({ onViewChange, activeView, onCreatePost }: Navigatio
               title="Cài đặt"
             >
               <Settings className="w-6 h-6" />
-            </button>
-
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-all hidden sm:block"
-              title="Đăng xuất"
-            >
-              <LogOut className="w-6 h-6" />
             </button>
           </div>
         </div>

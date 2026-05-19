@@ -27,7 +27,7 @@ import { ScreenGradient } from "../components/common/ScreenGradient";
 
 const FlashListAny = FlashList as any;
 
-export default function MessagesScreen() {
+export default function MessagesScreen({ route }: any) {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,6 +35,7 @@ export default function MessagesScreen() {
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [messageText, setMessageText] = useState("");
+  const initialConversationId = route?.params?.initialConversationId;
 
   const loadConversations = useCallback(async () => {
     try {
@@ -52,6 +53,13 @@ export default function MessagesScreen() {
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
+
+  useEffect(() => {
+    if (initialConversationId) {
+      setSelectedConvId(initialConversationId);
+      void loadConversations();
+    }
+  }, [initialConversationId, loadConversations]);
 
   const loadMessages = useCallback(async (convId: string) => {
     try {
@@ -81,6 +89,7 @@ export default function MessagesScreen() {
       const newMsg = res.data.data || res.data;
       setMessages((prev) => [...prev, newMsg]);
       setMessageText("");
+      void loadConversations();
     } catch (e) {
       console.error(e);
     }

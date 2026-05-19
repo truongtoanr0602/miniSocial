@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Loader2 } from "lucide-react";
+import { Camera, Loader2, Smile, Video } from "lucide-react";
 import { toast } from "sonner";
 import { PostCard } from "./PostCard";
 import apiClient from "../../services/api";
@@ -8,9 +8,11 @@ import type { IPost } from "../../types/models";
 
 interface PostFeedProps {
   onCreatePost?: () => void;
+  refreshKey?: number;
+  onOpenProfile?: (userId: string) => void;
 }
 
-export function PostFeed({ onCreatePost }: PostFeedProps) {
+export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFeedProps) {
   const [posts, setPosts] = useState<IPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export function PostFeed({ onCreatePost }: PostFeedProps) {
       setIsLoading(true);
       const response = await apiClient.get("/post/feed");
       const data = response.data.data;
-      setPosts(Array.isArray(data) ? data : []);
+      setPosts(Array.isArray(data) ? data : data?.posts || []);
       setError(null);
     } catch (err: any) {
       if (err.response?.status !== 401) {
@@ -39,30 +41,61 @@ export function PostFeed({ onCreatePost }: PostFeedProps) {
 
   useEffect(() => {
     fetchPosts();
-  }, [fetchPosts]);
+  }, [fetchPosts, refreshKey]);
 
-  // Like bài viết qua API
   const handleLike = useCallback(async (postId: string) => {
     try {
-      await apiClient.post(`/post/${postId}/react`);
+      const response = await apiClient.post(`/post/${postId}/react`);
+      const result = response.data.data;
       setPosts((prev) =>
         prev.map((post) =>
           post._id === postId
-            ? { ...post, stats: { ...post.stats, likes: post.stats.likes + 1 } }
+            ? {
+                ...post,
+                is_liked: result?.is_liked ?? !post.is_liked,
+                stats: {
+                  ...post.stats,
+                  likes:
+                    typeof result?.likes === "number"
+                      ? result.likes
+                      : Math.max(0, post.stats.likes + (post.is_liked ? -1 : 1)),
+                },
+              }
             : post,
         ),
       );
     } catch (err) {
-      console.error("Lỗi like bài viết:", err);
+      console.error("Lỗi thích bài viết:", err);
+      toast.error("Không thể cập nhật lượt thích.");
     }
   }, []);
 
-  const handleComment = useCallback((_postId: string) => {
-    // Sẽ mở phần comment — logic hiện tại trong PostCard
+  const handleCommentCreated = useCallback((postId: string) => {
+    setPosts((prev) =>
+      prev.map((post) =>
+        post._id === postId
+          ? { ...post, stats: { ...post.stats, comments: post.stats.comments + 1 } }
+          : post,
+      ),
+    );
   }, []);
 
-  const handleShare = useCallback((_postId: string) => {
-    // Sẽ implement share sau
+  const handlePostUpdated = useCallback((updatedPost: IPost) => {
+    setPosts((prev) =>
+      prev.map((post) =>
+        post._id === updatedPost._id
+          ? { ...post, ...updatedPost, is_liked: post.is_liked }
+          : post,
+      ),
+    );
+  }, []);
+
+  const handlePostDeleted = useCallback((postId: string) => {
+    setPosts((prev) => prev.filter((post) => post._id !== postId));
+  }, []);
+
+  const handleShare = useCallback(() => {
+    toast.info("Tính năng chia sẻ đang được cập nhật.");
   }, []);
 
   const handleOpenCreatePost = useCallback(() => {
@@ -73,10 +106,11 @@ export function PostFeed({ onCreatePost }: PostFeedProps) {
     toast.info("Tính năng tạo bài viết đang được cập nhật.");
   }, [onCreatePost]);
 
-  // Lấy avatar URL hiện tại
+  const userName = currentUser?.display_name || currentUser?.username || "U";
   const userAvatar =
+    (currentUser as any)?.avatar_url ||
     currentUser?.avatar ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.display_name || "U")}&background=7c3aed&color=fff`;
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=7c3aed&color=fff`;
 
   if (isLoading) {
     return (
@@ -107,14 +141,9 @@ export function PostFeed({ onCreatePost }: PostFeedProps) {
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Create Post */}
       <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-4 border border-gray-200/50">
         <div className="flex items-center space-x-3">
-          <img
-            src={userAvatar}
-            alt="Your avatar"
-            className="w-12 h-12 rounded-full object-cover"
-          />
+          <img src={userAvatar} alt="Your avatar" className="w-12 h-12 rounded-full object-cover" />
           <input
             type="text"
             placeholder="Bạn đang nghĩ gì?"
@@ -128,36 +157,31 @@ export function PostFeed({ onCreatePost }: PostFeedProps) {
             onClick={handleOpenCreatePost}
             className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition-all"
           >
-            <span className="text-xl">📸</span>
+            <Camera className="w-5 h-5 text-green-600" />
             <span className="text-sm text-gray-600 hidden sm:inline">Ảnh</span>
           </button>
           <button
             onClick={handleOpenCreatePost}
             className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition-all"
           >
-            <span className="text-xl">🎥</span>
-            <span className="text-sm text-gray-600 hidden sm:inline">
-              Video
-            </span>
+            <Video className="w-5 h-5 text-blue-600" />
+            <span className="text-sm text-gray-600 hidden sm:inline">Video</span>
           </button>
           <button
             onClick={handleOpenCreatePost}
             className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition-all"
           >
-            <span className="text-xl">😊</span>
-            <span className="text-sm text-gray-600 hidden sm:inline">
-              Cảm xúc
-            </span>
+            <Smile className="w-5 h-5 text-yellow-600" />
+            <span className="text-sm text-gray-600 hidden sm:inline">Cảm xúc</span>
           </button>
         </div>
       </div>
 
-      {/* Posts — dữ liệu thật từ API */}
       {posts.length === 0 ? (
         <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-12 text-center">
           <p className="text-gray-500 font-medium">Chưa có bài viết nào</p>
           <p className="text-sm text-gray-400 mt-1">
-            Hãy tạo bài viết đầu tiên hoặc theo dõi ai đó!
+            Hãy tạo bài viết đầu tiên hoặc theo dõi ai đó.
           </p>
         </div>
       ) : (
@@ -166,8 +190,11 @@ export function PostFeed({ onCreatePost }: PostFeedProps) {
             key={post._id}
             post={post}
             onLike={handleLike}
-            onComment={handleComment}
+            onCommentCreated={handleCommentCreated}
             onShare={handleShare}
+            onPostUpdated={handlePostUpdated}
+            onPostDeleted={handlePostDeleted}
+            onOpenProfile={onOpenProfile}
           />
         ))
       )}

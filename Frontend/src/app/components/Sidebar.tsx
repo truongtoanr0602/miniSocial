@@ -6,9 +6,10 @@ import type { ISuggestedUser } from "../../types/models";
 
 interface SidebarProps {
   onViewAllSuggestions?: () => void;
+  onOpenProfile?: (userId: string) => void;
 }
 
-export function Sidebar({ onViewAllSuggestions }: SidebarProps) {
+export function Sidebar({ onViewAllSuggestions, onOpenProfile }: SidebarProps) {
   const [suggestedUsers, setSuggestedUsers] = useState<ISuggestedUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
@@ -39,12 +40,18 @@ export function Sidebar({ onViewAllSuggestions }: SidebarProps) {
   // Follow user qua API
   const handleFollow = useCallback(async (userId: string) => {
     try {
-      await apiClient.post(`/users/follow/${userId}`);
+      const response = await apiClient.post(`/users/follow/${userId}`);
+      const followStatus = response.data?.data?.status;
       setFollowingIds((prev) => {
         const next = new Set(prev);
         next.add(userId);
         return next;
       });
+      if (followStatus === "pending") {
+        toast.info("Đã gửi yêu cầu theo dõi.");
+        return;
+      }
+      window.dispatchEvent(new Event("profile:refresh"));
       toast.success("Đã theo dõi!");
     } catch (err) {
       console.error("Lỗi theo dõi:", err);
@@ -79,17 +86,27 @@ export function Sidebar({ onViewAllSuggestions }: SidebarProps) {
 
               return (
                 <div key={user._id} className="flex items-center space-x-3">
-                  <img
-                    src={avatar}
-                    alt={user.display_name}
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                  <div className="flex-1 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => onOpenProfile?.(user._id)}
+                    className="shrink-0"
+                  >
+                    <img
+                      src={avatar}
+                      alt={user.display_name}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenProfile?.(user._id)}
+                    className="flex-1 min-w-0 text-left"
+                  >
                     <p className="font-semibold text-sm text-gray-900 truncate">
                       {user.display_name}
                     </p>
                     <p className="text-xs text-gray-500">@{user.username}</p>
-                  </div>
+                  </button>
                   {isFollowing ? (
                     <span className="px-3 py-1 bg-gray-200 text-gray-600 text-xs rounded-full">
                       Đã theo dõi

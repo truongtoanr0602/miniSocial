@@ -22,7 +22,8 @@ export function LoginView() {
 
       // Lưu cả Token và thông tin User
       localStorage.setItem('userToken', data.token);
-      localStorage.setItem('userData', JSON.stringify(data.user));
+      const normalizedUser = { ...data.user, _id: data.user._id || data.user.id };
+      localStorage.setItem('userData', JSON.stringify(normalizedUser));
       
       // Security fix: không log token ra console
       navigate('/'); 
@@ -43,7 +44,8 @@ export function LoginView() {
       
       // Lưu "chìa khóa" vào trình duyệt
       localStorage.setItem('userToken', data.token);
-      localStorage.setItem('userData', JSON.stringify(data.user));
+      const normalizedUser = { ...data.user, _id: data.user._id || data.user.id };
+      localStorage.setItem('userData', JSON.stringify(normalizedUser));
       
       // Đăng nhập Google thành công — không log dữ liệu nhạy cảm
       
@@ -169,7 +171,7 @@ export function LoginView() {
           <p className="mt-8 text-center text-sm text-gray-600">
             Chưa có tài khoản?{" "}
             <Link to="/register" className="font-semibold text-purple-600 hover:text-purple-700 transition-colors">
-              Đăng ký ngay
+              Đăng ký ngày
             </Link>
           </p>
         </div>

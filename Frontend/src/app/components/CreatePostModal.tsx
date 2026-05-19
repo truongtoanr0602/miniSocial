@@ -96,10 +96,10 @@ export function CreatePostModal({
       formData.append("visibility", privacy);
 
       selectedFiles.forEach((file) => {
-        formData.append("media", file);
+        formData.append("images", file);
       });
 
-      await apiClient.post("/post", formData, {
+      await apiClient.post("/post/createPost", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 

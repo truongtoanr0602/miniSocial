@@ -30,6 +30,13 @@ export function ProfileCard({ onEditProfile }: ProfileCardProps) {
 
   useEffect(() => {
     fetchProfile();
+    const onRefreshProfile = () => {
+      fetchProfile();
+    };
+    window.addEventListener("profile:refresh", onRefreshProfile);
+    return () => {
+      window.removeEventListener("profile:refresh", onRefreshProfile);
+    };
   }, [fetchProfile]);
 
   if (isLoading) {

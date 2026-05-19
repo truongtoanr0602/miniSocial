@@ -28,7 +28,13 @@ export const toggleFollow = async (
     }
 
     if (userId === targetId) {
-      errorResponse(req, res, "follow.CANNOT_FOLLOW_SELF", 400, "CANNOT_FOLLOW_SELF");
+      errorResponse(
+        req,
+        res,
+        "follow.CANNOT_FOLLOW_SELF",
+        400,
+        "CANNOT_FOLLOW_SELF",
+      );
       return;
     }
 
@@ -63,6 +69,10 @@ export const toggleFollow = async (
 
     if (existingFollow) {
       await Follow.findByIdAndDelete(existingFollow._id);
+      await Promise.all([
+        User.findByIdAndUpdate(userId, { $pull: { following: targetId } }),
+        User.findByIdAndUpdate(targetId, { $pull: { followers: userId } }),
+      ]);
       successResponse(
         req,
         res,
@@ -80,6 +90,16 @@ export const toggleFollow = async (
         following_id: new mongoose.Types.ObjectId(targetId),
         status,
       });
+      if (status === "accepted") {
+        await Promise.all([
+          User.findByIdAndUpdate(userId, {
+            $addToSet: { following: targetId },
+          }),
+          User.findByIdAndUpdate(targetId, {
+            $addToSet: { followers: userId },
+          }),
+        ]);
+      }
 
       // Gửi thông báo realtime cho người được follow
       if (status === "accepted") {
@@ -133,7 +153,13 @@ export const toggleBlock = async (
     }
 
     if (userId === targetId) {
-      errorResponse(req, res, "follow.CANNOT_BLOCK_SELF", 400, "CANNOT_BLOCK_SELF");
+      errorResponse(
+        req,
+        res,
+        "follow.CANNOT_BLOCK_SELF",
+        400,
+        "CANNOT_BLOCK_SELF",
+      );
       return;
     }
 
@@ -170,6 +196,14 @@ export const toggleBlock = async (
           },
         ],
       });
+      await Promise.all([
+        User.findByIdAndUpdate(userId, {
+          $pull: { following: targetId, followers: targetId },
+        }),
+        User.findByIdAndUpdate(targetId, {
+          $pull: { following: userId, followers: userId },
+        }),
+      ]);
       successResponse(
         req,
         res,
@@ -440,12 +474,26 @@ export const acceptFollowRequest = async (
     });
 
     if (!followRequest) {
-      errorResponse(req, res, "follow.REQUEST_NOT_FOUND", 404, "REQUEST_NOT_FOUND");
+      errorResponse(
+        req,
+        res,
+        "follow.REQUEST_NOT_FOUND",
+        404,
+        "REQUEST_NOT_FOUND",
+      );
       return;
     }
 
     followRequest.status = "accepted";
     await followRequest.save();
+    await Promise.all([
+      User.findByIdAndUpdate(followRequest.follower_id, {
+        $addToSet: { following: followRequest.following_id },
+      }),
+      User.findByIdAndUpdate(followRequest.following_id, {
+        $addToSet: { followers: followRequest.follower_id },
+      }),
+    ]);
 
     // Thông báo cho người gửi request biết đã được chấp nhận
     await createNotification({
@@ -494,7 +542,13 @@ export const rejectFollowRequest = async (
     });
 
     if (!followRequest) {
-      errorResponse(req, res, "follow.REQUEST_NOT_FOUND", 404, "REQUEST_NOT_FOUND");
+      errorResponse(
+        req,
+        res,
+        "follow.REQUEST_NOT_FOUND",
+        404,
+        "REQUEST_NOT_FOUND",
+      );
       return;
     }
 
@@ -552,4 +606,3 @@ export const getFollowCounts = async (
     errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
   }
 };
-

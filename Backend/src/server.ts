@@ -12,6 +12,8 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import followRoutes from "./routes/followRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
+import { createRateLimiter, securityHeaders } from "./middleware/security.js";
 import * as middleware from "i18next-http-middleware";
 import { env } from "./config/env.js";
 import i18next from "./config/i18n.js";
@@ -44,6 +46,8 @@ app.use(
 );
 
 // Middleware phải được setup trước các routes
+app.use(securityHeaders);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -51,13 +55,18 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(middleware.handle(i18next));
 
-app.use("/api/auth", authRoutes);
+app.use(
+  "/api/auth",
+  createRateLimiter({ windowMs: 15 * 60 * 1000, max: 80, keyPrefix: "auth" }),
+  authRoutes,
+);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/post", postRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/follow", followRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api/report", reportRoutes);
 
 
 app.get("/api/test", (req: Request, res: Response) => {

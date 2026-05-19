@@ -92,7 +92,7 @@ export default function RegisterScreen({ navigation }: any) {
       otp: data.otp.trim(),
     });
     if (result.ok) {
-      Alert.alert("Thành công", "Đăng ký thành công! Đăng nhập ngay.", [
+      Alert.alert("Thành công", "Đăng ký thành công! Đăng nhập ngày.", [
         { text: "OK", onPress: () => navigation.navigate("Login") },
       ]);
     } else {

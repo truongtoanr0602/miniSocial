@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import mongoose from "mongoose";
 import PostModel from "../models/postModel.js";
+import Reaction from "../models/Reaction.js";
 import { successResponse, errorResponse } from "../utils/response.js";
 import { createNotification } from "./notificationController.js";
 
@@ -8,10 +9,6 @@ interface AuthRequest extends Request {
   userId?: string;
 }
 
-// ──────────────────────────────────────────
-// 1. Toggle Like bài viết
-// POST /api/post/:postId/react
-// ──────────────────────────────────────────
 export const reactToPost = async (
   req: AuthRequest,
   res: Response,
@@ -31,27 +28,43 @@ export const reactToPost = async (
       return;
     }
 
-    // Toggle: tăng hoặc giảm likes
-    // Trong tương lai nên dùng collection Reaction riêng để track ai đã like
-    post.stats.likes += 1;
-    await post.save();
+    const existingReaction = await Reaction.findOne({
+      post_id: new mongoose.Types.ObjectId(postId),
+      user_id: new mongoose.Types.ObjectId(userId),
+      type: "like",
+    });
 
-    // Gửi notification cho tác giả bài viết
-    const postAuthorId = post.author_id.toString();
-    if (postAuthorId !== userId) {
-      await createNotification({
-        recipient_id: postAuthorId,
-        sender_id: userId,
+    let isLiked = false;
+    if (existingReaction) {
+      await Reaction.findByIdAndDelete(existingReaction._id);
+      post.stats.likes = Math.max(0, post.stats.likes - 1);
+    } else {
+      await Reaction.create({
+        post_id: new mongoose.Types.ObjectId(postId),
+        user_id: new mongoose.Types.ObjectId(userId),
         type: "like",
-        target_id: postId,
-        message: "đã thích bài viết của bạn",
       });
+      post.stats.likes += 1;
+      isLiked = true;
+
+      const postAuthorId = post.author_id.toString();
+      if (postAuthorId !== userId) {
+        await createNotification({
+          recipient_id: postAuthorId,
+          sender_id: userId,
+          type: "like",
+          target_id: postId,
+          message: "đã thích bài viết của bạn",
+        });
+      }
     }
+
+    await post.save();
 
     successResponse(
       req,
       res,
-      { likes: post.stats.likes },
+      { likes: post.stats.likes, is_liked: isLiked },
       "post.REACT_SUCCESS",
       200,
       "REACT_SUCCESS",

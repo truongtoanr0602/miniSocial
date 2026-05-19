@@ -7,3 +7,4 @@ mobile/.expo/
 backend/uploads/
 *.log
 .Agents/
+scripts/

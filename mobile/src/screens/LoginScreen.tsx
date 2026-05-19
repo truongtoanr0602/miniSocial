@@ -150,7 +150,7 @@ export default function LoginScreen({ navigation }: any) {
           onPress={() => navigation.navigate("Register")}
         >
           <Text style={styles.registerLink}>
-            Chưa có tài khoản? <Text style={ui.buttonGhostText}>Đăng ký ngay</Text>
+            Chưa có tài khoản? <Text style={ui.buttonGhostText}>Đăng ký ngày</Text>
           </Text>
         </Pressable>
       </View>
