@@ -39,7 +39,7 @@ export const getConversations = async (
       );
       const unreadCount = await Message.countDocuments({
         conversationId: conv._id,
-        receiver: new mongoose.Types.ObjectId(userId),
+        receiverId: new mongoose.Types.ObjectId(userId),
         readAt: null,
         deletedBy: { $ne: new mongoose.Types.ObjectId(userId) },
       });
@@ -194,7 +194,7 @@ export const getMessages = async (
       .sort({ createdAt: -1 }) // Mới nhất lên đầu để phân trang dễ
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate("sender", "_id username display_name avatar_url");
+      .populate("senderId", "_id username display_name avatar_url");
 
     successResponse(
       req,
@@ -228,6 +228,9 @@ export const sendMessage = async (
   res: Response,
 ): Promise<void> => {
   try {
+    console.log("📦 1. Dữ liệu Body (Frontend gửi):", req.body);
+    console.log("🔗 2. Dữ liệu Params (Trên URL):", req.params);
+    console.log("👤 3. Dữ liệu User (Từ Token):", req.userId);
     const senderId = req.userId as string;
     const { conversationId } = req.params as { conversationId: string };
     const uploadedFile = (req as any).file as Express.Multer.File | undefined;
@@ -316,8 +319,8 @@ export const sendMessage = async (
     // Tạo tin nhắn mới
     const messageData: Record<string, unknown> = {
       conversationId,
-      sender: new mongoose.Types.ObjectId(senderId),
-      receiver: new mongoose.Types.ObjectId(receiverId),
+      senderId: new mongoose.Types.ObjectId(senderId),
+      receiverId: new mongoose.Types.ObjectId(receiverId),
       messageType,
       content: content?.trim() ?? "",
       deliveredAt: null,
@@ -328,6 +331,7 @@ export const sendMessage = async (
     }
 
     const newMessage = await Message.create(messageData);
+    console.log("🔥 Dữ liệu chuẩn bị nhét vào MongoDB:", newMessage);
 
     // Cập nhật lastMessage + tăng unreadCount cho receiver
     await Conversation.findByIdAndUpdate(conversationId, {
@@ -337,7 +341,7 @@ export const sendMessage = async (
     });
 
     const populated = await newMessage.populate(
-      "sender",
+      "senderId",
       "_id username display_name avatar_url",
     );
 
@@ -365,6 +369,7 @@ export const sendMessage = async (
     );
   } catch (error) {
     console.error("Error in sendMessage:", error);
+    console.error("🔥 Thủ phạm bị bắt:", JSON.stringify(error.errInfo, null, 2));
     errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
   }
 };
@@ -502,7 +507,7 @@ export const markAsRead = async (
     await Message.updateMany(
       {
         conversationId,
-        receiver: new mongoose.Types.ObjectId(userId),
+        receiverId: new mongoose.Types.ObjectId(userId),
         readAt: null,
       },
       { $set: { readAt: now } },

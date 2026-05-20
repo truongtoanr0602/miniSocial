@@ -308,7 +308,7 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                   </div>
                 ) : (
                   messages.map((message) => {
-                    const senderId = typeof message.sender === "string" ? message.sender : message.sender._id;
+                    const senderId = typeof message.senderId === "string" ? message.senderId : message.senderId._id;
                     const isOwn = senderId === currentUser?._id;
 
                     return (

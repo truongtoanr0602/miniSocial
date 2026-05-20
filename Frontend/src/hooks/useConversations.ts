@@ -6,14 +6,14 @@ import { useCurrentUser } from "./useCurrentUser";
 export interface IMessage {
   _id: string;
   conversationId: string;
-  sender: string | {
+  senderId: string | {
     _id: string;
     username: string;
     display_name: string;
     avatar_url?: string;
     avatar?: string;
   };
-  receiver: string;
+  receiverId: string;
   content: string;
   mediaUrl?: string;
   media_type?: string;
@@ -37,7 +37,7 @@ export interface IConversation {
   participants?: IPartner[];
   lastMessage?: {
     content: string;
-    sender: string;
+    senderId: string;
     createdAt: string;
   } | null;
   unreadCount?: number;
@@ -102,7 +102,7 @@ export function useConversations() {
 
   useSocketEvent<NewMessagePayload>("newMessage", (payload) => {
     const msg = payload.message;
-    const senderId = typeof msg.sender === "string" ? msg.sender : msg.sender._id;
+    const senderId = typeof msg.senderId === "string" ? msg.senderId : msg.senderId._id;
     const isFromCurrentUser = Boolean(currentUser?._id && senderId === currentUser._id);
     setConversations((prev) => {
       const updated = prev.map((conv) =>
@@ -111,7 +111,7 @@ export function useConversations() {
               ...conv,
               lastMessage: {
                 content: msg.content,
-                sender: senderId,
+                senderId: senderId,
                 createdAt: msg.createdAt,
               },
               unreadCount: isFromCurrentUser

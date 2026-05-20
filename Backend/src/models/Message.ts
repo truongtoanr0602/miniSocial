@@ -2,8 +2,8 @@ import mongoose, { Schema, type Document } from "mongoose";
 
 export interface IMessage extends Document {
   conversationId: mongoose.Types.ObjectId;
-  sender: mongoose.Types.ObjectId;
-  receiver: mongoose.Types.ObjectId;
+  senderId: mongoose.Types.ObjectId;
+  receiverId: mongoose.Types.ObjectId;
   messageType: string;
   content: string;
   mediaUrl?: string;
@@ -22,13 +22,13 @@ const messageSchema = new Schema<IMessage>(
       required: true,
       index: true,
     },
-    sender: {
+    senderId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
       index: true,
     },
-    receiver: {
+    receiverId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
@@ -67,7 +67,7 @@ const messageSchema = new Schema<IMessage>(
 );
 
 messageSchema.index({ conversationId: 1, createdAt: -1 });
-messageSchema.index({ sender: 1, receiver: 1, createdAt: -1 });
+messageSchema.index({ senderId: 1, receiverId: 1, createdAt: -1 });
 
 const Message = mongoose.model<IMessage>("Message", messageSchema);
 
