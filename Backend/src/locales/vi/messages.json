@@ -13,7 +13,7 @@
     "GOOGLE_LOGIN_SUCCESS": "Đăng nhập bằng Google thành công!",
     "DUPLICATE_USERNAME": "Tên người dùng đã tồn tại!",
     "DUPLICATE_EMAIL": "Email này đã được đăng ký!",
-    "DUPLICATE_PHONE": "Số điện thoại này đã được đăng ký!",
+    "DUPLICATE_PHONE": "Số điện thoại {phone} đã được đăng ký!",
     "DUPLICATE_KEY": "Dữ liệu bị trùng lặp!",
     "VALIDATION_ERROR": "Dữ liệu không hợp lệ!",
     "MISSING_CREDENTIALS": "Vui lòng nhập tài khoản và mật khẩu!",
@@ -31,7 +31,7 @@
     "PASSWORD_MISMATCH": "Mật khẩu và xác nhận mật khẩu không khớp!",
     "MISSING_CONTACT": "Email và số điện thoại là bắt buộc để đăng ký!",
     "MISSING_OTP": "OTP là bắt buộc để đăng ký!",
-    "USER_ALREADY_EXISTS": "Một người dùng với email hoặc số điện thoại này đã tồn tại!"
+    "USER_ALREADY_EXISTS": "Một người dùng với email hoặc số điện thoại {phone} này đã tồn tại!"
   },
   "chat": {
     "CONVERSATION_CREATED": "Tạo cuộc trò chuyện thành công!",

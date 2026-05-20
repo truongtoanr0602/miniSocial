@@ -13,7 +13,7 @@
     "GOOGLE_LOGIN_SUCCESS": "Logged in with Google successfully!",
     "DUPLICATE_USERNAME": "This username is already taken!",
     "DUPLICATE_EMAIL": "This email is already registered!",
-    "DUPLICATE_PHONE": "This phone number is already registered!",
+    "DUPLICATE_PHONE": "This phone number {phone} is already registered!",
     "DUPLICATE_KEY": "Duplicate data detected!",
     "VALIDATION_ERROR": "Invalid data!",
     "MISSING_CREDENTIALS": "Please enter your account and password!",
@@ -31,7 +31,7 @@
     "PASSWORD_MISMATCH": "Password and confirm password do not match!",
     "MISSING_CONTACT": "Email and phone number are required for registration!",
     "MISSING_OTP": "OTP is required for registration!",
-    "USER_ALREADY_EXISTS": "A user with this email or phone number already exists!"
+    "USER_ALREADY_EXISTS": "A user with this email or phone number {phone} already exists!"
   },
   "chat": {
     "CONVERSATION_CREATED": "Conversation created successfully!",

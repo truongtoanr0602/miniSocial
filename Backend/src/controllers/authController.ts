@@ -50,6 +50,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         "auth.USER_ALREADY_EXISTS",
         400,
         "USER_ALREADY_EXISTS",
+        { phone: phone_number }
       );
       return;
     }
