@@ -37,16 +37,20 @@ export function LoginView() {
 
   // 2. Xử lý Đăng nhập Google (Gộp 2 hàm cũ thành 1 cho gọn)
   const handleGoogleSuccess = async (credentialResponse: any) => {
-
     try {
       const idToken = credentialResponse.credential;
       
-      // Gọi service gửi idToken xuống Backend
-      const data = await authService.googleLogin(idToken);
+      // Gọi service gửi idToken xuống Backend (đổi tên biến thành response)
+      const response = await authService.googleLogin(idToken);
+      console.log("Kết quả từ Backend:", response);
+      
+      // ⚡️ Chấm qua .data một lần để lấy đúng nội dung bên trong
+      const token = response.data.token;
+      const user = response.data.user;
       
       // Lưu "chìa khóa" vào trình duyệt
-      localStorage.setItem('userToken', data.token);
-      const normalizedUser = { ...data.user, _id: data.user._id || data.user.id };
+      localStorage.setItem('userToken', token);
+      const normalizedUser = { ...user, _id: user._id || user.id };
       localStorage.setItem('userData', JSON.stringify(normalizedUser));
       
       // Đăng nhập Google thành công — không log dữ liệu nhạy cảm
@@ -58,7 +62,6 @@ export function LoginView() {
       alert(error.response?.data?.message || text("Lỗi xác thực Google với Server!", "Google authentication failed on the server!"));
     }
   };
-
   return (
     <div className="min-h-screen relative flex items-center justify-center overflow-hidden bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
       {/* Background Orbs giữ nguyên... */}

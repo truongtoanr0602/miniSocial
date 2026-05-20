@@ -367,7 +367,7 @@ export const sendMessage = async (
       201,
       "SEND_SUCCESS",
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in sendMessage:", error);
     console.error("🔥 Thủ phạm bị bắt:", JSON.stringify(error.errInfo, null, 2));
     errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
