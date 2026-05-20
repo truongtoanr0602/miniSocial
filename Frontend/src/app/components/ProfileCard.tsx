@@ -1,7 +1,7 @@
 import { Calendar, Mail, Phone, Loader2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
-import { toast } from "sonner";
 import apiClient from "../../services/api";
+import { useLangText } from "../../hooks/useLangText";
 import type { IMyProfile } from "../../types/models";
 
 interface ProfileCardProps {
@@ -9,6 +9,7 @@ interface ProfileCardProps {
 }
 
 export function ProfileCard({ onEditProfile }: ProfileCardProps) {
+  const text = useLangText();
   const [profile, setProfile] = useState<IMyProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -55,7 +56,7 @@ export function ProfileCard({ onEditProfile }: ProfileCardProps) {
     || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.display_name)}&background=7c3aed&color=fff&size=150`;
 
   const joinDate = profile.created_at
-    ? new Date(profile.created_at).toLocaleDateString("vi-VN", { month: "long", year: "numeric" })
+    ? new Date(profile.created_at).toLocaleDateString(text("vi-VN", "en-US"), { month: "long", year: "numeric" })
     : "";
 
   return (
@@ -78,7 +79,7 @@ export function ProfileCard({ onEditProfile }: ProfileCardProps) {
           
           {/* Bio */}
           <p className="text-sm text-gray-700 text-center mt-3 px-2">
-            {profile.bio || "🚀 Đang sử dụng Social Mini"}
+            {profile.bio || text("Đang sử dụng Social Mini", "Using Social Mini")}
           </p>
           
           {/* Info — dữ liệu thật */}
@@ -100,7 +101,7 @@ export function ProfileCard({ onEditProfile }: ProfileCardProps) {
             {joinDate ? (
               <div className="flex items-center space-x-2">
                 <Calendar className="w-4 h-4" />
-                <span>Tham gia {joinDate}</span>
+                <span>{text("Tham gia", "Joined")} {joinDate}</span>
               </div>
             ) : null}
           </div>
@@ -109,7 +110,7 @@ export function ProfileCard({ onEditProfile }: ProfileCardProps) {
           <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-3 gap-2 text-center">
             <div>
               <p className="font-bold text-gray-900">{profile.postsCount}</p>
-              <p className="text-xs text-gray-500">Bài viết</p>
+              <p className="text-xs text-gray-500">{text("Bài viết", "Posts")}</p>
             </div>
             <div>
               <p className="font-bold text-gray-900">
@@ -117,7 +118,7 @@ export function ProfileCard({ onEditProfile }: ProfileCardProps) {
                   ? `${(profile.followersCount / 1000).toFixed(1)}K`
                   : profile.followersCount}
               </p>
-              <p className="text-xs text-gray-500">Người theo dõi</p>
+              <p className="text-xs text-gray-500">{text("Người theo dõi", "Followers")}</p>
             </div>
             <div>
               <p className="font-bold text-gray-900">
@@ -125,22 +126,16 @@ export function ProfileCard({ onEditProfile }: ProfileCardProps) {
                   ? `${(profile.followingCount / 1000).toFixed(1)}K`
                   : profile.followingCount}
               </p>
-              <p className="text-xs text-gray-500">Đang theo dõi</p>
+              <p className="text-xs text-gray-500">{text("Đang theo dõi", "Following")}</p>
             </div>
           </div>
           
           {/* Action Button */}
           <button
-            onClick={() => {
-              if (onEditProfile) {
-                onEditProfile();
-                return;
-              }
-              toast.info("Tính năng chỉnh sửa hồ sơ đang phát triển.");
-            }}
+            onClick={onEditProfile}
             className="w-full mt-4 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-full font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
           >
-            Chỉnh sửa trang cá nhân
+            {text("Chỉnh sửa trang cá nhân", "Edit profile")}
           </button>
         </div>
       </div>

@@ -76,5 +76,68 @@
     "INVALID_FORMAT": "Định dạng tệp không hợp lệ! Vui lòng tải lên ảnh (JPG, PNG, WEBP).",
     "FILE_TOO_LARGE": "Tệp quá lớn! Kích thước tối đa cho phép là 5MB.",
     "MISSING_FILE": "Vui lòng chọn tệp để tải lên!"
+  },
+  "settings": {
+    "title": "Cài đặt",
+    "subtitle": "Quản lý tài khoản và tùy chọn của bạn",
+    "actions": {
+      "edit": "Chỉnh sửa"
+    },
+    "sections": {
+      "account": "Tài khoản",
+      "privacy": "Quyền riêng tư và bảo mật",
+      "notifications": "Thông báo",
+      "appearance": "Giao diện",
+      "support": "Hỗ trợ"
+    },
+    "rows": {
+      "editProfile": {
+        "title": "Chỉnh sửa hồ sơ",
+        "description": "Tên, bio, ảnh đại diện và thông tin cá nhân"
+      },
+      "changePassword": {
+        "title": "Đổi mật khẩu",
+        "description": "Cập nhật mật khẩu của bạn"
+      },
+      "privateAccount": {
+        "title": "Tài khoản riêng tư",
+        "description": "Chỉ người được chấp thuận mới xem bài viết"
+      },
+      "onlineStatus": {
+        "title": "Trạng thái hoạt động",
+        "description": "Cho phép người khác thấy bạn khi online"
+      },
+      "pushNotifications": {
+        "title": "Thông báo đẩy",
+        "description": "Bật/tắt thông báo"
+      },
+      "notificationSettings": {
+        "title": "Tùy chỉnh thông báo",
+        "description": "Chọn loại thông báo muốn nhận"
+      },
+      "language": {
+        "title": "Ngôn ngữ"
+      },
+      "help": {
+        "title": "Trợ giúp & hỗ trợ",
+        "description": "FAQ, liên hệ và điều khoản"
+      },
+      "logout": {
+        "title": "Đăng xuất",
+        "description": "Thoát khỏi tài khoản hiện tại"
+      }
+    },
+    "appearance": {
+      "title": "Giao diện",
+      "display": "Hiển thị",
+      "active": "Đang dùng"
+    },
+    "language": {
+      "title": "Ngôn ngữ",
+      "available": "Ngôn ngữ khả dụng",
+      "saved": "Đã cập nhật ngôn ngữ.",
+      "saveFailed": "Không thể lưu ngôn ngữ.",
+      "note": "Lựa chọn ngôn ngữ được lưu cho tài khoản và thiết bị này. Các màn đã tích hợp i18n sẽ đổi ngôn ngữ ngay lập tức."
+    }
   }
 }

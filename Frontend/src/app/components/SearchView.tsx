@@ -3,6 +3,7 @@ import { Loader2, MessageCircle, Search, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import apiClient from "../../services/api";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { useLangText } from "../../hooks/useLangText";
 import type { IPost, IUser } from "../../types/models";
 
 interface SearchResults {
@@ -25,6 +26,7 @@ function avatarFor(user: Pick<IUser, "display_name" | "username" | "avatar_url">
 
 export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: SearchViewProps) {
   const currentUser = useCurrentUser();
+  const text = useLangText();
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -49,11 +51,11 @@ export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: S
       console.error("Search failed:", err);
       setResults({ users: [], posts: [] });
       setHasSearched(true);
-      toast.error("Không thể tìm kiếm lúc này.");
+      toast.error(text("Không thể tìm kiếm lúc này.", "Search is unavailable right now."));
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [text]);
 
   useEffect(() => {
     const query = deferredQuery.trim();
@@ -74,15 +76,15 @@ export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: S
         const response = await apiClient.post(`/conversations/${userId}`);
         const conversationId = response.data.data?._id;
         if (!conversationId) {
-          toast.error("Không thể tạo cuộc trò chuyện.");
+          toast.error(text("Không thể tạo cuộc trò chuyện.", "Could not create conversation."));
           return;
         }
         onStartConversation?.(conversationId);
       } catch (err: any) {
-        toast.error(err.response?.data?.message || "Không thể bắt đầu nhắn tin.");
+        toast.error(err.response?.data?.message || text("Không thể bắt đầu nhắn tin.", "Could not start messaging."));
       }
     },
-    [currentUser?._id, onStartConversation],
+    [currentUser?._id, onStartConversation, text],
   );
 
   const clearSearch = () => {
@@ -109,7 +111,7 @@ export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: S
                 type="text"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Tìm kiếm người dùng, bài viết, hashtag..."
+                placeholder={text("Tìm kiếm người dùng, bài viết, hashtag...", "Search users, posts, hashtags...")}
                 className="w-full pl-12 pr-12 py-3 bg-gray-100 rounded-full text-base focus:outline-none focus:ring-2 focus:ring-purple-500"
                 autoFocus
               />
@@ -117,7 +119,7 @@ export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: S
                 <button
                   type="button"
                   onClick={clearSearch}
-                  aria-label="Xóa tìm kiếm"
+                  aria-label={text("Xóa tìm kiếm", "Clear search")}
                   className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full transition-colors"
                 >
                   <X className="w-4 h-4 text-gray-600" />
@@ -131,16 +133,21 @@ export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: S
           {isSearching ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 text-purple-600 animate-spin" />
-              <span className="ml-2 text-gray-500">Đang tìm kiếm...</span>
+              <span className="ml-2 text-gray-500">{text("Đang tìm kiếm...", "Searching...")}</span>
             </div>
           ) : !hasSearched ? (
             <div className="text-center py-12">
               <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Search className="w-10 h-10 text-purple-400" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Tìm kiếm trên Social Mini</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                {text("Tìm kiếm trên Social Mini", "Search Social Mini")}
+              </h3>
               <p className="text-sm text-gray-600">
-                Nhập tên người dùng, nội dung bài viết hoặc hashtag để tìm kiếm.
+                {text(
+                  "Nhập tên người dùng, nội dung bài viết hoặc hashtag để tìm kiếm.",
+                  "Enter a username, post content, or hashtag to search.",
+                )}
               </p>
             </div>
           ) : totalResults === 0 ? (
@@ -148,15 +155,19 @@ export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: S
               <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Search className="w-10 h-10 text-gray-400" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Không tìm thấy kết quả</h3>
-              <p className="text-sm text-gray-600">Thử tìm kiếm với từ khóa khác.</p>
+              <h3 className="font-semibold text-gray-900 mb-2">
+                {text("Không tìm thấy kết quả", "No results found")}
+              </h3>
+              <p className="text-sm text-gray-600">
+                {text("Thử tìm kiếm với từ khóa khác.", "Try a different keyword.")}
+              </p>
             </div>
           ) : (
             <div className="space-y-8">
               {results?.users.length ? (
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-4">
-                    Người dùng ({results.users.length})
+                    {text("Người dùng", "Users")} ({results.users.length})
                   </h3>
                   <div className="space-y-2">
                     {results.users.map((user) => {
@@ -178,12 +189,12 @@ export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: S
                           </span>
                           <span className="flex items-center gap-2">
                             <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-600 rounded-full">
-                              {user.followers?.length || 0} followers
+                              {user.followers?.length || 0} {text("người theo dõi", "followers")}
                             </span>
                             {isCurrentUser ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-500">
                                 <UserPlus className="h-3.5 w-3.5" />
-                                Bạn
+                                {text("Bạn", "You")}
                               </span>
                             ) : (
                               <span
@@ -202,7 +213,7 @@ export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: S
                                 className="inline-flex items-center gap-1 rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
                               >
                                 <MessageCircle className="h-3.5 w-3.5" />
-                                Nhắn tin
+                                {text("Nhắn tin", "Message")}
                               </span>
                             )}
                           </span>
@@ -216,12 +227,12 @@ export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: S
               {results?.posts.length ? (
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-4">
-                    Bài viết ({results.posts.length})
+                    {text("Bài viết", "Posts")} ({results.posts.length})
                   </h3>
                   <div className="space-y-2">
                     {results.posts.map((post) => {
                       const author = typeof post.author_id === "object" ? post.author_id : null;
-                      const authorName = author?.display_name || author?.username || "Người dùng";
+                      const authorName = author?.display_name || author?.username || text("Người dùng", "User");
                       const firstMedia = post.media?.[0];
                       return (
                         <button
@@ -239,15 +250,15 @@ export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: S
                           )}
                           <span className="flex-1 min-w-0">
                             <span className="block font-semibold text-gray-900 truncate">
-                              {post.content?.substring(0, 60) || "Bài viết"}
+                              {post.content?.substring(0, 60) || text("Bài viết", "Post")}
                               {(post.content?.length || 0) > 60 ? "..." : ""}
                             </span>
                             <span className="block text-sm text-gray-600 truncate">
-                              {authorName} - {post.stats?.likes || 0} lượt thích
+                              {authorName} - {post.stats?.likes || 0} {text("lượt thích", "likes")}
                             </span>
                           </span>
                           <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
-                            Bài viết
+                            {text("Bài viết", "Post")}
                           </span>
                         </button>
                       );

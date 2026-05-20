@@ -9,6 +9,8 @@ export interface IUser {
   phone_number?: string;
   avatar_url?: string;
   bio?: string;
+  location?: string;
+  website?: string;
   following: string[];
   followers: string[];
   settings?: {

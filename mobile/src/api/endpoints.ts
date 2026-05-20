@@ -39,6 +39,7 @@ export const ENDPOINTS = {
   UPDATE_POST: (postId: string) => `/post/${postId}`,
   DELETE_POST: (postId: string) => `/post/${postId}`,
   REACT_POST: (postId: string) => `/post/${postId}/react`,
+  SHARE_POST: (postId: string) => `/post/${postId}/share`,
 
   // Comments
   POST_COMMENTS: (postId: string) => `/post/${postId}/comments`,
@@ -56,6 +57,7 @@ export const ENDPOINTS = {
   CONVERSATIONS: "/conversations",
   CREATE_CONVERSATION: (receiverId: string) => `/conversations/${receiverId}`,
   MESSAGES: (conversationId: string) => `/conversations/${conversationId}/messages`,
+  MESSAGE_UPLOAD: (conversationId: string) => `/conversations/${conversationId}/messages/upload`,
   MARK_READ: (conversationId: string) => `/conversations/${conversationId}/read`,
   DELETE_MESSAGE: (conversationId: string, messageId: string) => `/conversations/${conversationId}/messages/${messageId}`,
 

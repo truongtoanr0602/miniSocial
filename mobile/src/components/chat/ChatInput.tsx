@@ -3,6 +3,7 @@ import { View, TextInput, Pressable, StyleSheet } from "react-native";
 import { Send, Image as ImageIcon } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { palette } from "../../theme";
+import { useLanguage } from "../../store/LanguageContext";
 
 interface Props {
   value: string;
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function ChatInput({ value, onChangeText, onSend, onPickImage }: Props) {
+  const { t } = useLanguage();
   const canSend = value.trim().length > 0;
 
   return (
@@ -24,7 +26,7 @@ export function ChatInput({ value, onChangeText, onSend, onPickImage }: Props) {
       <TextInput
         value={value}
         onChangeText={onChangeText}
-        placeholder="Nhập tin nhắn..."
+        placeholder={t("Nhập tin nhắn...", "Type a message...")}
         placeholderTextColor={palette.muted}
         style={styles.input}
         onSubmitEditing={onSend}

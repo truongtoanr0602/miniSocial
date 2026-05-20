@@ -26,6 +26,7 @@ import {
 import { api } from "../api/client";
 import { ENDPOINTS } from "../api/endpoints";
 import { useAuth } from "../store/AuthContext";
+import { useLanguage } from "../store/LanguageContext";
 import { palette } from "../theme";
 import { ScreenGradient } from "../components/common/ScreenGradient";
 import PostItem from "../components/PostItem";
@@ -61,6 +62,7 @@ function normalizeProfile(raw: any) {
 
 export default function ProfileScreen({ route, navigation }: any) {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const routeUserId = route?.params?.userId as string | undefined;
   const targetUserId = routeUserId || (user as any)?._id;
   const isOwnProfile = !routeUserId || routeUserId === (user as any)?._id;
@@ -179,7 +181,7 @@ export default function ProfileScreen({ route, navigation }: any) {
   if (!profile) {
     return (
       <ScreenGradient>
-        <Text style={styles.loadingText}>Đang tải hồ sơ...</Text>
+        <Text style={styles.loadingText}>{t("Đang tải hồ sơ...", "Loading profile...")}</Text>
       </ScreenGradient>
     );
   }
@@ -187,17 +189,17 @@ export default function ProfileScreen({ route, navigation }: any) {
   const userData = profile.user || profile;
   const avatarUrl = avatarFor(userData);
   const followButtonLabel = profile.is_pending
-    ? "Đã gửi yêu cầu"
+    ? t("Đã gửi yêu cầu", "Request sent")
     : profile.is_following
-      ? "Đang theo dõi"
-      : "Theo dõi";
+      ? t("Đang theo dõi", "Following")
+      : t("Theo dõi", "Follow");
 
   const ListHeader = () => (
     <View style={styles.headerContainer}>
       {!isOwnProfile ? (
         <Pressable onPress={() => navigation.goBack()} style={styles.backRow}>
           <ArrowLeft color={palette.ink} size={20} />
-          <Text style={styles.backText}>Quay lại</Text>
+          <Text style={styles.backText}>{t("Quay lại", "Back")}</Text>
         </Pressable>
       ) : null}
 
@@ -219,7 +221,7 @@ export default function ProfileScreen({ route, navigation }: any) {
               {isOwnProfile ? (
                 <Pressable style={styles.editBtn} onPress={() => navigation.navigate("Settings")}>
                   <Edit color="#fff" size={16} style={styles.editIcon} />
-                  <Text style={styles.editBtnText}>Chỉnh sửa</Text>
+                  <Text style={styles.editBtnText}>{t("Chỉnh sửa", "Edit")}</Text>
                 </Pressable>
               ) : (
                 <Pressable
@@ -240,7 +242,7 @@ export default function ProfileScreen({ route, navigation }: any) {
           <View style={styles.userInfo}>
             <Text style={styles.displayName}>{userData.display_name || userData.username}</Text>
             <Text style={styles.username}>@{userData.username}</Text>
-            <Text style={styles.bio}>{userData.bio || "Chưa có tiểu sử"}</Text>
+            <Text style={styles.bio}>{userData.bio || t("Chưa có tiểu sử", "No bio yet")}</Text>
 
             <View style={styles.metaRow}>
               {userData.email ? (
@@ -252,8 +254,11 @@ export default function ProfileScreen({ route, navigation }: any) {
               <View style={styles.metaItem}>
                 <Calendar color={palette.muted} size={14} style={styles.metaIcon} />
                 <Text style={styles.metaText}>
-                  Tham gia tháng {new Date(userData.created_at || Date.now()).getMonth() + 1} năm{" "}
-                  {new Date(userData.created_at || Date.now()).getFullYear()}
+                  {t("Tham gia", "Joined")}{" "}
+                  {new Date(userData.created_at || Date.now()).toLocaleDateString(t("vi-VN", "en-US"), {
+                    month: "long",
+                    year: "numeric",
+                  })}
                 </Text>
               </View>
             </View>
@@ -262,15 +267,15 @@ export default function ProfileScreen({ route, navigation }: any) {
           <View style={styles.statsRow}>
             <Pressable onPress={() => void openFollowList("followers")} style={styles.statItem}>
               <Text style={styles.statValue}>{profile.followersCount ?? 0}</Text>
-              <Text style={styles.statLabel}>Người theo dõi</Text>
+              <Text style={styles.statLabel}>{t("Người theo dõi", "Followers")}</Text>
             </Pressable>
             <Pressable onPress={() => void openFollowList("following")} style={styles.statItem}>
               <Text style={styles.statValue}>{profile.followingCount ?? 0}</Text>
-              <Text style={styles.statLabel}>Đang theo dõi</Text>
+              <Text style={styles.statLabel}>{t("Đang theo dõi", "Following")}</Text>
             </Pressable>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{profile.postsCount ?? profile.posts?.length ?? 0}</Text>
-              <Text style={styles.statLabel}>Bài viết</Text>
+              <Text style={styles.statLabel}>{t("Bài viết", "Posts")}</Text>
             </View>
           </View>
         </View>
@@ -280,7 +285,11 @@ export default function ProfileScreen({ route, navigation }: any) {
         {(["posts", "photos", "about"] as const).map((tab) => {
           const isActive = activeTab === tab;
           const icons = { posts: Grid, photos: ImageIcon, about: Info };
-          const labels = { posts: "Bài viết", photos: "Hình ảnh", about: "Giới thiệu" };
+          const labels = {
+            posts: t("Bài viết", "Posts"),
+            photos: t("Hình ảnh", "Photos"),
+            about: t("Giới thiệu", "About"),
+          };
           const Icon = icons[tab];
           return (
             <Pressable
@@ -296,14 +305,14 @@ export default function ProfileScreen({ route, navigation }: any) {
       </View>
 
       {activeTab === "photos" && photoMedia.length === 0 ? (
-        <Text style={styles.emptyText}>Chưa có hình ảnh nào</Text>
+        <Text style={styles.emptyText}>{t("Chưa có hình ảnh nào", "No photos yet")}</Text>
       ) : null}
       {activeTab === "about" ? (
         <View style={styles.aboutCard}>
-          <Text style={styles.aboutTitle}>Thông tin cơ bản</Text>
-          <Text style={styles.aboutText}>Tên hiển thị: {userData.display_name || userData.username}</Text>
+          <Text style={styles.aboutTitle}>{t("Thông tin cơ bản", "Basic information")}</Text>
+          <Text style={styles.aboutText}>{t("Tên hiển thị", "Display name")}: {userData.display_name || userData.username}</Text>
           <Text style={styles.aboutText}>Username: @{userData.username}</Text>
-          <Text style={styles.aboutText}>Tiểu sử: {userData.bio || "Chưa cập nhật"}</Text>
+          <Text style={styles.aboutText}>{t("Tiểu sử", "Bio")}: {userData.bio || t("Chưa cập nhật", "Not updated")}</Text>
         </View>
       ) : null}
     </View>
@@ -339,7 +348,7 @@ export default function ProfileScreen({ route, navigation }: any) {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {followListKind === "followers" ? "Người theo dõi" : "Đang theo dõi"}
+                {followListKind === "followers" ? t("Người theo dõi", "Followers") : t("Đang theo dõi", "Following")}
               </Text>
               <Pressable onPress={() => setFollowListKind(null)} style={styles.closeBtn}>
                 <X color={palette.muted} size={20} />
@@ -347,9 +356,9 @@ export default function ProfileScreen({ route, navigation }: any) {
             </View>
             <ScrollView style={styles.modalList}>
               {loadingFollowList ? (
-                <Text style={styles.emptyText}>Đang tải...</Text>
+                <Text style={styles.emptyText}>{t("Đang tải...", "Loading...")}</Text>
               ) : followUsers.length === 0 ? (
-                <Text style={styles.emptyText}>Chưa có người dùng nào.</Text>
+                <Text style={styles.emptyText}>{t("Chưa có người dùng nào.", "No users yet.")}</Text>
               ) : (
                 followUsers.map((followUser) => (
                   <Pressable

@@ -76,5 +76,68 @@
     "INVALID_FORMAT": "Invalid file format! Please upload an image (JPG, PNG, WEBP).",
     "FILE_TOO_LARGE": "File is too large! Maximum allowed size is 5MB.",
     "MISSING_FILE": "Please select a file to upload!"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your account and preferences",
+    "actions": {
+      "edit": "Edit"
+    },
+    "sections": {
+      "account": "Account",
+      "privacy": "Privacy and security",
+      "notifications": "Notifications",
+      "appearance": "Appearance",
+      "support": "Support"
+    },
+    "rows": {
+      "editProfile": {
+        "title": "Edit profile",
+        "description": "Name, bio, avatar and personal information"
+      },
+      "changePassword": {
+        "title": "Change password",
+        "description": "Update your account password"
+      },
+      "privateAccount": {
+        "title": "Private account",
+        "description": "Only approved followers can view posts"
+      },
+      "onlineStatus": {
+        "title": "Activity status",
+        "description": "Allow others to see when you are online"
+      },
+      "pushNotifications": {
+        "title": "Push notifications",
+        "description": "Turn notifications on or off"
+      },
+      "notificationSettings": {
+        "title": "Notification preferences",
+        "description": "Choose which notifications to receive"
+      },
+      "language": {
+        "title": "Language"
+      },
+      "help": {
+        "title": "Help & support",
+        "description": "FAQ, contact and terms"
+      },
+      "logout": {
+        "title": "Log out",
+        "description": "Leave the current account"
+      }
+    },
+    "appearance": {
+      "title": "Appearance",
+      "display": "Display",
+      "active": "Active"
+    },
+    "language": {
+      "title": "Language",
+      "available": "Available languages",
+      "saved": "Language updated.",
+      "saveFailed": "Could not save language.",
+      "note": "Your language choice is saved for this account and device. Screens integrated with i18n update immediately."
+    }
   }
 }

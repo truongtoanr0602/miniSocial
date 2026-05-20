@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import apiClient from "../services/api";
 import { useSocketEvent, useSocketEmit } from "./useSocket";
+import { useCurrentUser } from "./useCurrentUser";
 
 export interface IMessage {
   _id: string;
@@ -48,7 +49,10 @@ interface NewMessagePayload {
   message: IMessage;
 }
 
+const CONVERSATION_READ_EVENT = "miniSocial:conversation-read";
+
 export function useConversations() {
+  const currentUser = useCurrentUser();
   const [conversations, setConversations] = useState<IConversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -68,8 +72,38 @@ export function useConversations() {
     void fetchConversations();
   }, [fetchConversations]);
 
+  useEffect(() => {
+    const handleConversationRead = (event: Event) => {
+      const conversationId = (event as CustomEvent<string>).detail;
+      if (!conversationId) return;
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv._id === conversationId ? { ...conv, unreadCount: 0 } : conv,
+        ),
+      );
+    };
+
+    window.addEventListener(CONVERSATION_READ_EVENT, handleConversationRead);
+    return () => {
+      window.removeEventListener(CONVERSATION_READ_EVENT, handleConversationRead);
+    };
+  }, []);
+
+  const markConversationRead = useCallback((conversationId: string) => {
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv._id === conversationId ? { ...conv, unreadCount: 0 } : conv,
+      ),
+    );
+    window.dispatchEvent(
+      new CustomEvent(CONVERSATION_READ_EVENT, { detail: conversationId }),
+    );
+  }, []);
+
   useSocketEvent<NewMessagePayload>("newMessage", (payload) => {
     const msg = payload.message;
+    const senderId = typeof msg.sender === "string" ? msg.sender : msg.sender._id;
+    const isFromCurrentUser = Boolean(currentUser?._id && senderId === currentUser._id);
     setConversations((prev) => {
       const updated = prev.map((conv) =>
         conv._id === payload.conversationId
@@ -77,9 +111,12 @@ export function useConversations() {
               ...conv,
               lastMessage: {
                 content: msg.content,
-                sender: typeof msg.sender === "string" ? msg.sender : msg.sender._id,
+                sender: senderId,
                 createdAt: msg.createdAt,
               },
+              unreadCount: isFromCurrentUser
+                ? conv.unreadCount || 0
+                : (conv.unreadCount || 0) + 1,
               updatedAt: msg.createdAt,
             }
           : conv,
@@ -91,7 +128,12 @@ export function useConversations() {
     });
   });
 
-  return { conversations, isLoading, refetch: fetchConversations };
+  return {
+    conversations,
+    isLoading,
+    markConversationRead,
+    refetch: fetchConversations,
+  };
 }
 
 export function useMessages(conversationId: string | null) {
@@ -172,6 +214,36 @@ export function useMessages(conversationId: string | null) {
     [conversationId],
   );
 
+  const sendAttachment = useCallback(
+    async (file: File, messageType: "image" | "file") => {
+      if (!conversationId) return undefined;
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("messageType", messageType);
+        formData.append("content", file.name);
+
+        const response = await apiClient.post(
+          `/conversations/${conversationId}/messages/upload`,
+          formData,
+          { headers: { "Content-Type": "multipart/form-data" } },
+        );
+        const message = response.data.data as IMessage | undefined;
+        if (message) {
+          setMessages((prev) =>
+            prev.some((item) => item._id === message._id) ? prev : [...prev, message],
+          );
+        }
+        return message;
+      } catch (err) {
+        console.error("Send attachment failed:", err);
+        throw err;
+      }
+    },
+    [conversationId],
+  );
+
   const sendTyping = useCallback(
     (receiverId: string) => {
       if (!conversationId) return;
@@ -200,6 +272,7 @@ export function useMessages(conversationId: string | null) {
     isLoading,
     isTyping,
     sendMessage,
+    sendAttachment,
     sendTyping,
     markAsRead,
   };

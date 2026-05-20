@@ -118,7 +118,7 @@ export function SocialMediaApp() {
               <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr_300px] gap-6 h-full">
                 {/* Left Sidebar - Profile Card */}
                 <div className="hidden lg:block">
-                  <ProfileCard onEditProfile={() => handleOpenProfile(null)} />
+                  <ProfileCard onEditProfile={() => handleViewChange("settings")} />
                 </div>
 
                 {/* Main Content */}

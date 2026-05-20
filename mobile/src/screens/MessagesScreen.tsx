@@ -1,3 +1,4 @@
+import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
@@ -22,6 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { api } from "../api/client";
 import { ENDPOINTS } from "../api/endpoints";
 import { useAuth } from "../store/AuthContext";
+import { useLanguage } from "../store/LanguageContext";
 import { ui, palette } from "../theme";
 import { ScreenGradient } from "../components/common/ScreenGradient";
 
@@ -29,12 +31,14 @@ const FlashListAny = FlashList as any;
 
 export default function MessagesScreen({ route }: any) {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [conversations, setConversations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [messageText, setMessageText] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const initialConversationId = route?.params?.initialConversationId;
 
   const loadConversations = useCallback(async () => {
@@ -74,11 +78,25 @@ export default function MessagesScreen({ route }: any) {
     }
   }, []);
 
+  const markConversationRead = useCallback(async (convId: string) => {
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv._id === convId ? { ...conv, unreadCount: 0 } : conv,
+      ),
+    );
+    try {
+      await api.patch(ENDPOINTS.MARK_READ(convId));
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   useEffect(() => {
     if (selectedConvId) {
       loadMessages(selectedConvId);
+      void markConversationRead(selectedConvId);
     }
-  }, [selectedConvId, loadMessages]);
+  }, [selectedConvId, loadMessages, markConversationRead]);
 
   const sendMessage = async () => {
     if (!messageText.trim() || !selectedConvId) return;
@@ -95,9 +113,37 @@ export default function MessagesScreen({ route }: any) {
     }
   };
 
-  const handlePickImage = useCallback(() => {
-    Alert.alert("Gửi ảnh", "Tính năng gửi ảnh đang được phát triển.");
-  }, []);
+  const handlePickImage = useCallback(async () => {
+    if (!selectedConvId || isUploadingImage) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+
+    try {
+      setIsUploadingImage(true);
+      const asset = result.assets[0];
+      const formData = new FormData() as any;
+      formData.append("messageType", "image");
+      formData.append("file", {
+        uri: asset.uri,
+        name: "message.jpg",
+        type: "image/jpeg",
+      });
+      const res = await api.post(ENDPOINTS.MESSAGE_UPLOAD(selectedConvId), formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const newMsg = res.data.data || res.data;
+      setMessages((prev) => [...prev, newMsg]);
+      void loadConversations();
+    } catch (e) {
+      console.error(e);
+      Alert.alert(t("Gửi ảnh", "Send image"), t("Không thể gửi ảnh.", "Could not send image."));
+    } finally {
+      setIsUploadingImage(false);
+    }
+  }, [isUploadingImage, loadConversations, selectedConvId, t]);
 
   const filteredConversations = conversations.filter((conv) => {
     const partner = conv.partner;
@@ -118,7 +164,10 @@ export default function MessagesScreen({ route }: any) {
 
     return (
       <Pressable
-        onPress={() => setSelectedConvId(item._id)}
+        onPress={() => {
+          setSelectedConvId(item._id);
+          void markConversationRead(item._id);
+        }}
         style={{
           flexDirection: "row",
           padding: 16,
@@ -147,7 +196,7 @@ export default function MessagesScreen({ route }: any) {
             </Text>
             {lastMsg?.createdAt ? (
               <Text style={{ fontSize: 12, color: palette.muted }}>
-                {new Date(lastMsg.createdAt).toLocaleDateString("vi-VN")}
+                {new Date(lastMsg.createdAt).toLocaleDateString(t("vi-VN", "en-US"))}
               </Text>
             ) : null}
           </View>
@@ -158,7 +207,7 @@ export default function MessagesScreen({ route }: any) {
               style={{ color: palette.muted, fontSize: 14 }}
               numberOfLines={1}
             >
-              {lastMsg?.content || "Bắt đầu cuộc trò chuyện..."}
+              {lastMsg?.content || t("Bắt đầu cuộc trò chuyện...", "Start a conversation...")}
             </Text>
             {unread > 0 ? (
               <View
@@ -255,7 +304,7 @@ export default function MessagesScreen({ route }: any) {
                     marginTop: 40,
                   }}
                 >
-                  Hãy gửi lời chào đầu tiên! 👋
+                  {t("Hãy gửi lời chào đầu tiên!", "Send the first hello!")}
                 </Text>
               ) : (
                 messages.map((msg, idx) => {
@@ -289,14 +338,28 @@ export default function MessagesScreen({ route }: any) {
                           maxWidth: "80%",
                         }}
                       >
-                        <Text
-                          style={{
-                            color: isOwn ? "#fff" : palette.ink,
-                            fontSize: 15,
-                          }}
-                        >
-                          {msg.content}
-                        </Text>
+                        {msg.messageType === "image" && msg.mediaUrl ? (
+                          <Image
+                            source={{ uri: msg.mediaUrl }}
+                            style={{
+                              width: 220,
+                              height: 180,
+                              borderRadius: 12,
+                              marginBottom: msg.content ? 8 : 0,
+                            }}
+                            contentFit="cover"
+                          />
+                        ) : null}
+                        {msg.content ? (
+                          <Text
+                            style={{
+                              color: isOwn ? "#fff" : palette.ink,
+                              fontSize: 15,
+                            }}
+                          >
+                            {msg.content}
+                          </Text>
+                        ) : null}
                         <Text
                           style={{
                             color: isOwn
@@ -307,7 +370,7 @@ export default function MessagesScreen({ route }: any) {
                             alignSelf: "flex-end",
                           }}
                         >
-                          {new Date(msg.createdAt).toLocaleTimeString("vi-VN", {
+                          {new Date(msg.createdAt).toLocaleTimeString(t("vi-VN", "en-US"), {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}
@@ -329,13 +392,17 @@ export default function MessagesScreen({ route }: any) {
                 alignItems: "center",
               }}
             >
-              <Pressable onPress={handlePickImage} style={{ padding: 8 }}>
+              <Pressable
+                onPress={handlePickImage}
+                disabled={isUploadingImage}
+                style={{ padding: 8, opacity: isUploadingImage ? 0.5 : 1 }}
+              >
                 <ImageIcon color={palette.muted} size={20} />
               </Pressable>
               <TextInput
                 value={messageText}
                 onChangeText={setMessageText}
-                placeholder="Nhập tin nhắn..."
+                placeholder={t("Nhập tin nhắn...", "Type a message...")}
                 style={{
                   flex: 1,
                   backgroundColor: "#f3f4f6",
@@ -392,14 +459,14 @@ export default function MessagesScreen({ route }: any) {
               marginBottom: 12,
             }}
           >
-            Tin nhắn
+            {t("Tin nhắn", "Messages")}
           </Text>
           <View style={[ui.inputWrapper, { marginBottom: 0, height: 40 }]}>
             <Search color={palette.muted} size={18} />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Tìm kiếm..."
+              placeholder={t("Tìm kiếm...", "Search...")}
               style={[ui.input, { fontSize: 14 }]}
             />
           </View>

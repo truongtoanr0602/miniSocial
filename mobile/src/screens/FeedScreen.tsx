@@ -12,6 +12,7 @@ import { ENDPOINTS } from "../api/endpoints";
 import PostComposer from "../components/PostComposer";
 import PostItem from "../components/PostItem";
 import { useAuth } from "../store/AuthContext";
+import { useLanguage } from "../store/LanguageContext";
 import { palette } from "../theme";
 import { ScreenGradient } from "../components/common/ScreenGradient";
 import type { IPost, IUser, ApiResponse } from "../types/models";
@@ -20,6 +21,7 @@ const FlashListAny = FlashList as any;
 
 export default function FeedScreen({ navigation }: any) {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [posts, setPosts] = useState<IPost[]>([]);
   const [suggestions, setSuggestions] = useState<IUser[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,7 +90,7 @@ export default function FeedScreen({ navigation }: any) {
         <View style={styles.suggestionsContainer}>
           <View style={styles.suggestionsHeader}>
             <Users color={palette.primary} size={18} style={styles.suggestionsIcon} />
-            <Text style={styles.suggestionsTitle}>Gợi ý kết bạn</Text>
+            <Text style={styles.suggestionsTitle}>{t("Gợi ý kết bạn", "Suggested friends")}</Text>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionsScroll}>
             {suggestions.map((suggestedUser) => {
@@ -109,7 +111,7 @@ export default function FeedScreen({ navigation }: any) {
                       colors={[palette.primary, palette.accent]}
                       style={styles.followBtn}
                     >
-                      <Text style={styles.followBtnText}>Theo dõi</Text>
+                      <Text style={styles.followBtnText}>{t("Theo dõi", "Follow")}</Text>
                     </LinearGradient>
                   </Pressable>
                 </View>
@@ -119,7 +121,7 @@ export default function FeedScreen({ navigation }: any) {
         </View>
       ) : null}
     </View>
-  ), [suggestions, load, followUser, navigation]);
+  ), [suggestions, load, followUser, navigation, t]);
 
   return (
     <ScreenGradient>

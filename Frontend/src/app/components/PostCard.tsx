@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import apiClient from "../../services/api";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { useLangText } from "../../hooks/useLangText";
 import type { IComment, IPost, IUser } from "../../types/models";
 
 interface PostCardProps {
@@ -28,21 +29,21 @@ interface PostCardProps {
   onOpenProfile?: (userId: string) => void;
 }
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, text: (vi: string, en: string) => string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "Vừa xong";
-  if (minutes < 60) return `${minutes} phút trước`;
+  if (minutes < 1) return text("Vừa xong", "Just now");
+  if (minutes < 60) return text(`${minutes} phút trước`, `${minutes} minutes ago`);
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} giờ trước`;
+  if (hours < 24) return text(`${hours} giờ trước`, `${hours} hours ago`);
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} ngày trước`;
-  return new Date(dateStr).toLocaleDateString("vi-VN");
+  if (days < 7) return text(`${days} ngày trước`, `${days} days ago`);
+  return new Date(dateStr).toLocaleDateString(text("vi-VN", "en-US"));
 }
 
-function getUserInfo(userValue: IUser | string | undefined) {
+function getUserInfo(userValue: IUser | string | undefined, text: (vi: string, en: string) => string) {
   if (!userValue || typeof userValue === "string") {
-    return { id: "", name: "Người dùng", username: "user", avatar: "" };
+    return { id: "", name: text("Người dùng", "User"), username: "user", avatar: "" };
   }
 
   return {
@@ -65,6 +66,7 @@ export const PostCard = memo(function PostCard({
   onOpenProfile,
 }: PostCardProps) {
   const currentUser = useCurrentUser();
+  const text = useLangText();
   const [isSaved, setIsSaved] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<IComment[]>([]);
@@ -75,7 +77,7 @@ export const PostCard = memo(function PostCard({
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(post.content || "");
 
-  const author = getUserInfo(post.author_id as IUser | string);
+  const author = getUserInfo(post.author_id as IUser | string, text);
   const isOwner = Boolean(currentUser?._id && author.id === currentUser._id);
   const openAuthorProfile = useCallback(() => {
     if (author.id) onOpenProfile?.(author.id);
@@ -90,11 +92,11 @@ export const PostCard = memo(function PostCard({
       setCommentsLoaded(true);
     } catch (err) {
       console.error("Load comments failed:", err);
-      toast.error("Không thể tải bình luận.");
+      toast.error(text("Không thể tải bình luận.", "Could not load comments."));
     } finally {
       setIsLoadingComments(false);
     }
-  }, [commentsLoaded, isLoadingComments, post._id]);
+  }, [commentsLoaded, isLoadingComments, post._id, text]);
 
   const handleLike = useCallback(() => {
     onLike(post._id);
@@ -120,9 +122,9 @@ export const PostCard = memo(function PostCard({
       onCommentCreated(post._id);
     } catch (err) {
       console.error("Create comment failed:", err);
-      toast.error("Không thể gửi bình luận.");
+      toast.error(text("Không thể gửi bình luận.", "Could not send comment."));
     }
-  }, [commentText, onCommentCreated, post._id]);
+  }, [commentText, onCommentCreated, post._id, text]);
 
   const handleSaveEdit = useCallback(async () => {
     const content = editText.trim();
@@ -132,28 +134,28 @@ export const PostCard = memo(function PostCard({
       const response = await apiClient.patch(`/post/${post._id}`, { content });
       onPostUpdated(response.data.data);
       setIsEditing(false);
-      toast.success("Đã cập nhật bài viết.");
+      toast.success(text("Đã cập nhật bài viết.", "Post updated."));
     } catch (err) {
       console.error("Update post failed:", err);
-      toast.error("Không thể cập nhật bài viết.");
+      toast.error(text("Không thể cập nhật bài viết.", "Could not update post."));
     }
-  }, [editText, onPostUpdated, post._id, post.media.length]);
+  }, [editText, onPostUpdated, post._id, post.media.length, text]);
 
   const handleDelete = useCallback(async () => {
-    if (!window.confirm("Xóa bài viết này?")) return;
+    if (!window.confirm(text("Xóa bài viết này?", "Delete this post?"))) return;
 
     try {
       await apiClient.delete(`/post/${post._id}`);
       onPostDeleted(post._id);
-      toast.success("Đã xóa bài viết.");
+      toast.success(text("Đã xóa bài viết.", "Post deleted."));
     } catch (err) {
       console.error("Delete post failed:", err);
-      toast.error("Không thể xóa bài viết.");
+      toast.error(text("Không thể xóa bài viết.", "Could not delete post."));
     }
-  }, [onPostDeleted, post._id]);
+  }, [onPostDeleted, post._id, text]);
 
   const handleReport = useCallback(async () => {
-    const reason = window.prompt("Lý do báo cáo bài viết:", "spam");
+    const reason = window.prompt(text("Lý do báo cáo bài viết:", "Reason for reporting this post:"), "spam");
     if (!reason?.trim()) return;
 
     try {
@@ -162,23 +164,23 @@ export const PostCard = memo(function PostCard({
         target_id: post._id,
         reason: reason.trim(),
       });
-      toast.success("Đã gửi báo cáo.");
+      toast.success(text("Đã gửi báo cáo.", "Report submitted."));
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Không thể gửi báo cáo.");
+      toast.error(err.response?.data?.message || text("Không thể gửi báo cáo.", "Could not submit report."));
     }
-  }, [post._id]);
+  }, [post._id, text]);
 
   const handleBlock = useCallback(async () => {
     if (!author.id || isOwner) return;
-    if (!window.confirm(`Chặn ${author.name}?`)) return;
+    if (!window.confirm(text(`Chặn ${author.name}?`, `Block ${author.name}?`))) return;
 
     try {
       await apiClient.post(`/follow/block/${author.id}`);
-      toast.success("Đã cập nhật trạng thái chặn.");
+      toast.success(text("Đã cập nhật trạng thái chặn.", "Block status updated."));
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Không thể chặn người dùng.");
+      toast.error(err.response?.data?.message || text("Không thể chặn người dùng.", "Could not block user."));
     }
-  }, [author.id, author.name, isOwner]);
+  }, [author.id, author.name, isOwner, text]);
 
   const handleShare = useCallback(() => {
     onShare(post._id);
@@ -204,15 +206,15 @@ export const PostCard = memo(function PostCard({
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               <span>{author.username}</span>
               <span>-</span>
-              <span>{timeAgo(post.created_at)}</span>
+              <span>{timeAgo(post.created_at, text)}</span>
             </div>
           </div>
         </button>
         <div className="relative">
           <button
             onClick={() => setShowTools((value) => !value)}
-            aria-label="Tùy chọn bài viết"
-            title="Tùy chọn bài viết"
+            aria-label={text("Tùy chọn bài viết", "Post options")}
+            title={text("Tùy chọn bài viết", "Post options")}
             className="p-2 hover:bg-gray-100 rounded-full transition-all"
           >
             <MoreHorizontal className="w-5 h-5 text-gray-500" />
@@ -228,13 +230,13 @@ export const PostCard = memo(function PostCard({
                     }}
                     className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                   >
-                    <Edit3 className="w-4 h-4" /> Sửa bài viết
+                    <Edit3 className="w-4 h-4" /> {text("Sửa bài viết", "Edit post")}
                   </button>
                   <button
                     onClick={handleDelete}
                     className="w-full px-3 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
                   >
-                    <Trash2 className="w-4 h-4" /> Xóa bài viết
+                    <Trash2 className="w-4 h-4" /> {text("Xóa bài viết", "Delete post")}
                   </button>
                 </>
               ) : (
@@ -243,13 +245,13 @@ export const PostCard = memo(function PostCard({
                     onClick={handleReport}
                     className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                   >
-                    <Flag className="w-4 h-4" /> Báo cáo
+                    <Flag className="w-4 h-4" /> {text("Báo cáo", "Report")}
                   </button>
                   <button
                     onClick={handleBlock}
                     className="w-full px-3 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
                   >
-                    <Ban className="w-4 h-4" /> Chặn người dùng
+                    <Ban className="w-4 h-4" /> {text("Chặn người dùng", "Block user")}
                   </button>
                 </>
               )}
@@ -274,13 +276,13 @@ export const PostCard = memo(function PostCard({
                 }}
                 className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 flex items-center gap-2"
               >
-                <X className="w-4 h-4" /> Hủy
+                <X className="w-4 h-4" /> {text("Hủy", "Cancel")}
               </button>
               <button
                 onClick={handleSaveEdit}
                 className="px-3 py-2 rounded-lg bg-purple-600 text-white flex items-center gap-2"
               >
-                <Save className="w-4 h-4" /> Lưu
+                <Save className="w-4 h-4" /> {text("Lưu", "Save")}
               </button>
             </div>
           </div>
@@ -292,11 +294,19 @@ export const PostCard = memo(function PostCard({
       {post.media?.length > 0 ? (
         <div className="relative">
           {post.media.length === 1 ? (
-            <img src={post.media[0].url} alt={post.media[0].alt_text || "Post content"} className="w-full object-cover max-h-[500px]" />
+            post.media[0].type === "video" ? (
+              <video src={post.media[0].url} controls className="w-full max-h-[500px] bg-black" />
+            ) : (
+              <img src={post.media[0].url} alt={post.media[0].alt_text || "Post content"} className="w-full object-cover max-h-[500px]" />
+            )
           ) : (
             <div className="grid grid-cols-2 gap-1">
               {post.media.map((item, idx) => (
-                <img key={`${item.url}-${idx}`} src={item.url} alt={item.alt_text || `Media ${idx + 1}`} className="w-full h-48 object-cover" />
+                item.type === "video" ? (
+                  <video key={`${item.url}-${idx}`} src={item.url} controls className="h-48 w-full bg-black object-cover" />
+                ) : (
+                  <img key={`${item.url}-${idx}`} src={item.url} alt={item.alt_text || `Media ${idx + 1}`} className="w-full h-48 object-cover" />
+                )
               ))}
             </div>
           )}
@@ -304,10 +314,10 @@ export const PostCard = memo(function PostCard({
       ) : null}
 
       <div className="px-4 py-3 flex items-center justify-between text-sm text-gray-600">
-        <span>{post.stats.likes} lượt thích</span>
+        <span>{post.stats.likes} {text("lượt thích", "likes")}</span>
         <div className="flex items-center space-x-4">
-          <span>{post.stats.comments} bình luận</span>
-          <span>{post.stats.shares} chia sẻ</span>
+          <span>{post.stats.comments} {text("bình luận", "comments")}</span>
+          <span>{post.stats.shares} {text("chia sẻ", "shares")}</span>
         </div>
       </div>
 
@@ -319,26 +329,26 @@ export const PostCard = memo(function PostCard({
           }`}
         >
           <Heart className={`w-5 h-5 ${post.is_liked ? "fill-current" : ""}`} />
-          <span className="hidden sm:inline">Thích</span>
+          <span className="hidden sm:inline">{text("Thích", "Like")}</span>
         </button>
         <button
           onClick={handleToggleComments}
           className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all hover:bg-gray-100 text-gray-600"
         >
           <MessageCircle className="w-5 h-5" />
-          <span className="hidden sm:inline">Bình luận</span>
+          <span className="hidden sm:inline">{text("Bình luận", "Comment")}</span>
         </button>
         <button
           onClick={handleShare}
           className="flex items-center space-x-2 px-4 py-2 rounded-lg transition-all hover:bg-gray-100 text-gray-600"
         >
           <Share2 className="w-5 h-5" />
-          <span className="hidden sm:inline">Chia sẻ</span>
+          <span className="hidden sm:inline">{text("Chia sẻ", "Share")}</span>
         </button>
         <button
           onClick={() => setIsSaved((value) => !value)}
-          aria-label={isSaved ? "Bỏ lưu bài viết" : "Lưu bài viết"}
-          title={isSaved ? "Bỏ lưu bài viết" : "Lưu bài viết"}
+          aria-label={isSaved ? text("Bỏ lưu bài viết", "Unsave post") : text("Lưu bài viết", "Save post")}
+          title={isSaved ? text("Bỏ lưu bài viết", "Unsave post") : text("Lưu bài viết", "Save post")}
           className={`p-2 rounded-lg transition-all hover:bg-gray-100 ${
             isSaved ? "text-purple-500" : "text-gray-600"
           }`}
@@ -356,7 +366,7 @@ export const PostCard = memo(function PostCard({
                 type="text"
                 value={commentText}
                 onChange={(event) => setCommentText(event.target.value)}
-                placeholder="Viết bình luận..."
+                placeholder={text("Viết bình luận...", "Write a comment...")}
                 className="flex-1 px-4 py-2 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500"
                 onKeyDown={(event) => {
                   if (event.key === "Enter") void handleComment();
@@ -364,8 +374,8 @@ export const PostCard = memo(function PostCard({
               />
               <button
                 onClick={() => void handleComment()}
-                aria-label="Gửi bình luận"
-                title="Gửi bình luận"
+                aria-label={text("Gửi bình luận", "Send comment")}
+                title={text("Gửi bình luận", "Send comment")}
                 className="px-3 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-all"
               >
                 <Send className="w-4 h-4" />
@@ -374,13 +384,13 @@ export const PostCard = memo(function PostCard({
           </div>
 
           {isLoadingComments ? (
-            <div className="text-sm text-gray-500">Đang tải bình luận...</div>
+            <div className="text-sm text-gray-500">{text("Đang tải bình luận...", "Loading comments...")}</div>
           ) : comments.length === 0 ? (
-            <div className="text-sm text-gray-500">Chưa có bình luận nào.</div>
+            <div className="text-sm text-gray-500">{text("Chưa có bình luận nào.", "No comments yet.")}</div>
           ) : (
             <div className="space-y-3">
               {comments.map((comment) => {
-                const commentAuthor = getUserInfo(comment.author_id as IUser | string);
+                const commentAuthor = getUserInfo(comment.author_id as IUser | string, text);
                 return (
                   <div key={comment._id} className="flex gap-2">
                     <button type="button" onClick={() => commentAuthor.id && onOpenProfile?.(commentAuthor.id)}>

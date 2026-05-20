@@ -11,7 +11,11 @@ interface Props {
 export function ScreenGradient({ children, style }: Props) {
   return (
     <LinearGradient
-      colors={[palette.gradient.purpleLight, palette.gradient.blueLight, palette.gradient.pinkLight]}
+      colors={[
+        palette.gradient.purpleLight,
+        palette.gradient.blueLight,
+        palette.gradient.pinkLight,
+      ]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={[styles.container, style]}

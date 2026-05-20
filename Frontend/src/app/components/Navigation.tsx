@@ -9,6 +9,8 @@ import {
   User,
 } from "lucide-react";
 import { useNotifications } from "../../hooks/useNotifications";
+import { useConversations } from "../../hooks/useConversations";
+import { useLangText } from "../../hooks/useLangText";
 import { connectSocket } from "../../services/socketService";
 
 type ViewType =
@@ -31,6 +33,12 @@ export function Navigation({
   onCreatePost,
 }: NavigationProps) {
   const { unreadCount } = useNotifications();
+  const { conversations } = useConversations();
+  const text = useLangText();
+  const unreadMessageCount = conversations.reduce(
+    (total, conversation) => total + (conversation.unreadCount || 0),
+    0,
+  );
 
   useEffect(() => {
     connectSocket();
@@ -54,7 +62,7 @@ export function Navigation({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Tìm kiếm..."
+                placeholder={text("Tìm kiếm...", "Search...")}
                 onFocus={() => onViewChange("search")}
                 className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all cursor-pointer"
                 readOnly
@@ -70,7 +78,7 @@ export function Navigation({
                   ? "bg-purple-100 text-purple-600"
                   : "hover:bg-gray-100 text-gray-600"
               }`}
-              title="Trang chu"
+              title={text("Trang chủ", "Home")}
             >
               <Home className="w-6 h-6" />
             </button>
@@ -82,7 +90,7 @@ export function Navigation({
                   ? "bg-purple-100 text-purple-600"
                   : "hover:bg-gray-100 text-gray-600"
               }`}
-              title="Tìm kiếm"
+              title={text("Tìm kiếm", "Search")}
             >
               <Search className="w-6 h-6" />
             </button>
@@ -94,16 +102,20 @@ export function Navigation({
                   ? "bg-purple-100 text-purple-600"
                   : "hover:bg-gray-100 text-gray-600"
               }`}
-              title="Tin nhắn"
+              title={text("Tin nhắn", "Messages")}
             >
               <MessageCircle className="w-6 h-6" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+              {unreadMessageCount > 0 ? (
+                <span className="absolute top-1 right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs text-white">
+                  {unreadMessageCount > 99 ? "99+" : unreadMessageCount}
+                </span>
+              ) : null}
             </button>
 
             <button
               onClick={onCreatePost}
               className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 transition-all"
-              title="Tạo bài viết"
+              title={text("Tạo bài viết", "Create post")}
             >
               <PlusSquare className="w-6 h-6" />
             </button>
@@ -115,7 +127,7 @@ export function Navigation({
                   ? "bg-purple-100 text-purple-600"
                   : "hover:bg-gray-100 text-gray-600"
               }`}
-              title="Thông báo"
+              title={text("Thông báo", "Notifications")}
             >
               <Bell className="w-6 h-6" />
               {unreadCount > 0 ? (
@@ -132,7 +144,7 @@ export function Navigation({
                   ? "bg-purple-100 text-purple-600"
                   : "hover:bg-gray-100 text-gray-600"
               }`}
-              title="Trang ca nhan"
+              title={text("Trang cá nhân", "Profile")}
             >
               <User className="w-6 h-6" />
             </button>
@@ -144,7 +156,7 @@ export function Navigation({
                   ? "bg-purple-100 text-purple-600"
                   : "hover:bg-gray-100 text-gray-600"
               }`}
-              title="Cài đặt"
+              title={text("Cài đặt", "Settings")}
             >
               <Settings className="w-6 h-6" />
             </button>

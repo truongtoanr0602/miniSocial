@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import mongoose from "mongoose";
 import PostModel from "../models/postModel.js";
 import Reaction from "../models/Reaction.js";
-import { uploadAndCompressImage } from "../services/minioService.js";
+import { uploadAndCompressImage, uploadRawFile } from "../services/minioService.js";
 import { successResponse, errorResponse } from "../utils/response.js";
 
 function extractHashtags(text: string): string[] {
@@ -60,6 +60,8 @@ export const createPost = async (req: Request, res: Response): Promise<void> => 
     if (req.files && Array.isArray(req.files)) {
       for (const file of req.files) {
         if (file.mimetype.startsWith("video/")) {
+          const url = await uploadRawFile(file.buffer, file.originalname, file.mimetype);
+          mediaItems.push({ url, type: "video" });
           continue;
         }
         const url = await uploadAndCompressImage(file.buffer);
@@ -90,6 +92,40 @@ export const createPost = async (req: Request, res: Response): Promise<void> => 
   } catch (error: any) {
     console.error("Error creating post:", error);
     errorResponse(req, res, "post.CREATE_FAILED", 500, "CREATE_FAILED");
+  }
+};
+
+export const sharePost = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { postId } = req.params as { postId: string };
+
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      errorResponse(req, res, "post.INVALID_ID", 400, "INVALID_ID");
+      return;
+    }
+
+    const post = await PostModel.findByIdAndUpdate(
+      postId,
+      { $inc: { "stats.shares": 1 } },
+      { new: true },
+    ).select("stats");
+
+    if (!post) {
+      errorResponse(req, res, "post.NOT_FOUND", 404, "NOT_FOUND");
+      return;
+    }
+
+    successResponse(
+      req,
+      res,
+      { postId, shares: post.stats.shares },
+      "post.SHARED",
+      200,
+      "SHARED",
+    );
+  } catch (error: any) {
+    console.error("Error sharing post:", error);
+    errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
   }
 };
 

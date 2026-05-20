@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Bell,
   Camera,
+  Check,
   ChevronDown,
   ChevronRight,
   Eye,
@@ -13,16 +14,14 @@ import {
   Lock,
   LogOut,
   Mail,
-  MessageCircle,
   MessageSquare,
   MonitorCog,
-  Moon,
-  Palette,
   Save,
   Shield,
   User,
   Users,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import apiClient from "../../services/api";
@@ -43,9 +42,9 @@ interface SettingsViewProps {
 
 interface Settings {
   notifications: boolean;
-  darkMode: boolean;
   privateAccount: boolean;
   onlineStatus: boolean;
+  language: Language;
 }
 
 interface NotificationPrefs {
@@ -66,24 +65,38 @@ interface SettingRow {
   danger?: boolean;
 }
 
-type SettingsScreen = "main" | "edit-profile" | "notifications" | "help";
+type SettingsScreen =
+  | "main"
+  | "edit-profile"
+  | "notifications"
+  | "appearance"
+  | "language"
+  | "help";
+type Language = "vi" | "en";
+type SettingsToggleKey = Exclude<keyof Settings, "language">;
 
 const SETTINGS_KEY = "v1:settings";
 const NOTIFICATION_PREFS_KEY = "v1:notification-prefs";
 
+const LANGUAGE_OPTIONS: Array<{ id: Language; label: string; nativeLabel: string }> = [
+  { id: "vi", label: "Vietnamese", nativeLabel: "Tiếng Việt" },
+  { id: "en", label: "English", nativeLabel: "English" },
+];
+
 function loadSettings(): Settings {
+  const defaults: Settings = {
+    notifications: true,
+    privateAccount: false,
+    onlineStatus: true,
+    language: "vi",
+  };
   try {
     const stored = localStorage.getItem(SETTINGS_KEY);
-    if (stored) return JSON.parse(stored);
+    if (stored) return { ...defaults, ...JSON.parse(stored) };
   } catch {
     // Use defaults when local storage data is invalid.
   }
-  return {
-    notifications: true,
-    darkMode: false,
-    privateAccount: false,
-    onlineStatus: true,
-  };
+  return defaults;
 }
 
 function loadNotificationPrefs(): NotificationPrefs {
@@ -146,6 +159,7 @@ export function SettingsView({
   onViewChange: _onViewChange,
 }: SettingsViewProps) {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const [screen, setScreen] = useState<SettingsScreen>("main");
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>(
@@ -163,6 +177,11 @@ export function SettingsView({
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
+  const text = useCallback(
+    (vi: string, en: string) => (settings.language === "en" ? en : vi),
+    [settings.language],
+  );
 
   useEffect(() => {
     async function fetchProfile() {
@@ -178,9 +197,23 @@ export function SettingsView({
         setDisplayNameInput(data.display_name || "");
         setUsernameInput(data.username || "");
         setBioInput(data.bio || "");
+        setLocationInput(data.location || "");
+        setWebsiteInput(data.website || "");
         setEmailInput(data.email || "");
         setPhoneInput(data.phone_number || "");
         setAvatarPreview(data.avatar_url || "");
+        setSettings((prev) => {
+          const updated = {
+            ...prev,
+            privateAccount: data.settings?.privacy === "private",
+            language:
+              data.settings?.language === "en" || data.settings?.language === "vi"
+                ? data.settings.language
+                : prev.language,
+          };
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+          return updated;
+        });
       } catch (err) {
         console.error("Load profile error:", err);
       } finally {
@@ -191,13 +224,52 @@ export function SettingsView({
     void fetchProfile();
   }, []);
 
-  const handleToggle = useCallback((key: keyof Settings) => {
+  useEffect(() => {
+    document.documentElement.classList.remove("dark");
+    document.documentElement.lang = settings.language;
+    if (i18n.language !== settings.language) {
+      void i18n.changeLanguage(settings.language);
+    }
+  }, [i18n, settings.language]);
+
+  const handleToggle = useCallback((key: SettingsToggleKey) => {
     setSettings((prev) => {
       const updated = { ...prev, [key]: !prev[key] };
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+      if (key === "privateAccount") {
+        const formData = new FormData();
+        formData.append("privacy", updated.privateAccount ? "private" : "public");
+        void apiClient.put("/users/update", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      }
       return updated;
     });
   }, []);
+
+  const handleLanguageChange = useCallback(
+    async (language: Language) => {
+      setSettings((prev) => {
+        const updated = { ...prev, language };
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+        return updated;
+      });
+      document.documentElement.lang = language;
+      await i18n.changeLanguage(language);
+
+      try {
+        const formData = new FormData();
+        formData.append("language", language);
+        await apiClient.put("/users/update", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        toast.success(t("settings.language.saved"));
+      } catch (err: any) {
+        toast.error(err.response?.data?.message || t("settings.language.saveFailed"));
+      }
+    },
+    [i18n, t],
+  );
 
   const handleNotificationToggle = useCallback(
     (key: keyof NotificationPrefs) => {
@@ -222,7 +294,7 @@ export function SettingsView({
 
   const handleSaveProfile = useCallback(async () => {
     if (!displayNameInput.trim()) {
-      toast.error("Tên hiển thị không được để trống.");
+      toast.error(text("Tên hiển thị không được để trống.", "Display name cannot be empty."));
       return;
     }
 
@@ -230,7 +302,14 @@ export function SettingsView({
       setIsSavingProfile(true);
       const formData = new FormData();
       formData.append("display_name", displayNameInput.trim());
+      formData.append("username", usernameInput.trim());
       formData.append("bio", bioInput.trim());
+      formData.append("email", emailInput.trim());
+      formData.append("phone_number", phoneInput.trim());
+      formData.append("location", locationInput.trim());
+      formData.append("website", websiteInput.trim());
+      formData.append("privacy", settings.privateAccount ? "private" : "public");
+      formData.append("language", settings.language);
       if (avatarFile) formData.append("avatar", avatarFile);
 
       const response = await apiClient.put("/users/update", formData, {
@@ -251,19 +330,37 @@ export function SettingsView({
           JSON.stringify({
             ...currentUser,
             display_name: updatedProfile.display_name,
+            username: updatedProfile.username,
             avatar_url: updatedProfile.avatar_url,
+            email: updatedProfile.email,
+            phone_number: updatedProfile.phone_number,
           }),
         );
       }
 
-      toast.success("Đã lưu thay đổi.");
+      toast.success(text("Đã lưu thay đổi.", "Changes saved."));
       setScreen("main");
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Không thể cập nhật hồ sơ.");
+      toast.error(
+        err.response?.data?.message ||
+          text("Không thể cập nhật hồ sơ.", "Could not update profile."),
+      );
     } finally {
       setIsSavingProfile(false);
     }
-  }, [avatarFile, bioInput, displayNameInput]);
+  }, [
+    avatarFile,
+    bioInput,
+    displayNameInput,
+    emailInput,
+    locationInput,
+    phoneInput,
+    settings.language,
+    settings.privateAccount,
+    text,
+    usernameInput,
+    websiteInput,
+  ]);
 
   const handleLogout = useCallback(() => {
     authService.logout();
@@ -286,10 +383,7 @@ export function SettingsView({
           setScreen("help");
           break;
         case "language":
-          toast.info("Ứng dụng hiện hỗ trợ tiếng việt.");
-          break;
-        case "theme-color":
-          toast.info("Tùy chỉnh màu sắc đang được cập nhật.");
+          setScreen("language");
           break;
         default:
           break;
@@ -298,52 +392,54 @@ export function SettingsView({
     [navigate],
   );
 
-  const displayName = profile?.display_name || "Đang tải...";
+  const displayName = profile?.display_name || text("Đang tải...", "Loading...");
   const username = profile?.username || "";
   const email = profile?.email || "";
   const avatarUrl =
     avatarPreview ||
     profile?.avatar_url ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7c3aed&color=fff`;
+  const selectedLanguage =
+    LANGUAGE_OPTIONS.find((option) => option.id === settings.language) ||
+    LANGUAGE_OPTIONS[0];
 
-  const keyMap: Record<string, keyof Settings> = {
+  const keyMap: Record<string, SettingsToggleKey> = {
     "private-account": "privateAccount",
     "online-status": "onlineStatus",
     "push-notifications": "notifications",
-    "dark-mode": "darkMode",
   };
 
   const sections: Array<{ title: string; rows: SettingRow[] }> = [
     {
-      title: "Tài khoản",
+      title: t("settings.sections.account"),
       rows: [
         {
           id: "edit-profile",
           icon: <User className="h-5 w-5" />,
           iconClass: "bg-purple-100 text-purple-600",
-          title: "Chỉnh sửa hồ sơ",
-          description: "Tên, bio, ảnh đại diện va thông tin cá nhân",
+          title: t("settings.rows.editProfile.title"),
+          description: t("settings.rows.editProfile.description"),
           type: "navigate",
         },
         {
           id: "change-password",
           icon: <Lock className="h-5 w-5" />,
           iconClass: "bg-amber-100 text-amber-600",
-          title: "Đổi mật khẩu",
-          description: "Cập nhật mật khẩu của bạn",
+          title: t("settings.rows.changePassword.title"),
+          description: t("settings.rows.changePassword.description"),
           type: "navigate",
         },
       ],
     },
     {
-      title: "Quyền riêng tư và bảo mật",
+      title: t("settings.sections.privacy"),
       rows: [
         {
           id: "private-account",
           icon: <Shield className="h-5 w-5" />,
           iconClass: "bg-emerald-100 text-emerald-600",
-          title: "Tài khoản riêng tư",
-          description: "Chỉ người chấp nhận mới xem được bài viết",
+          title: t("settings.rows.privateAccount.title"),
+          description: t("settings.rows.privateAccount.description"),
           type: "toggle",
           value: settings.privateAccount,
         },
@@ -351,22 +447,22 @@ export function SettingsView({
           id: "online-status",
           icon: <Eye className="h-5 w-5" />,
           iconClass: "bg-cyan-100 text-cyan-600",
-          title: "Trạng thái hoạt động",
-          description: "Cho phép người khác thấy bạn khi online",
+          title: t("settings.rows.onlineStatus.title"),
+          description: t("settings.rows.onlineStatus.description"),
           type: "toggle",
           value: settings.onlineStatus,
         },
       ],
     },
     {
-      title: "Thông báo",
+      title: t("settings.sections.notifications"),
       rows: [
         {
           id: "push-notifications",
           icon: <Bell className="h-5 w-5" />,
           iconClass: "bg-orange-100 text-orange-600",
-          title: "Thông báo đẩy",
-          description: "Bật/ tắt thông báo",
+          title: t("settings.rows.pushNotifications.title"),
+          description: t("settings.rows.pushNotifications.description"),
           type: "toggle",
           value: settings.notifications,
         },
@@ -374,59 +470,42 @@ export function SettingsView({
           id: "notification-settings",
           icon: <MonitorCog className="h-5 w-5" />,
           iconClass: "bg-indigo-100 text-indigo-600",
-          title: "Tùy chỉnh thông báo",
-          description: "Chọn loại thông báo muốn nhận",
+          title: t("settings.rows.notificationSettings.title"),
+          description: t("settings.rows.notificationSettings.description"),
           type: "navigate",
         },
       ],
     },
     {
-      title: "Giao diện",
+      title: t("settings.sections.appearance"),
       rows: [
-        {
-          id: "dark-mode",
-          icon: <Moon className="h-5 w-5" />,
-          iconClass: "bg-slate-100 text-slate-600",
-          title: "Chế độ tối",
-          description: "Đang tắt",
-          type: "toggle",
-          value: settings.darkMode,
-        },
         {
           id: "language",
           icon: <Globe className="h-5 w-5" />,
           iconClass: "bg-teal-100 text-teal-600",
-          title: "Ngôn ngữ",
-          description: "Tiếng Việt",
-          type: "navigate",
-        },
-        {
-          id: "theme-color",
-          icon: <Palette className="h-5 w-5" />,
-          iconClass: "bg-fuchsia-100 text-fuchsia-600",
-          title: "Chủ đề màu sắc",
-          description: "Tím (Mặc định)",
+          title: t("settings.rows.language.title"),
+          description: selectedLanguage.nativeLabel,
           type: "navigate",
         },
       ],
     },
     {
-      title: "Hỗ trợ",
+      title: t("settings.sections.support"),
       rows: [
         {
           id: "help",
           icon: <HelpCircle className="h-5 w-5" />,
           iconClass: "bg-sky-100 text-sky-600",
-          title: "Trợ giúp & hỗ trợ",
-          description: "FAQ, liên hệ và điều khoản",
+          title: t("settings.rows.help.title"),
+          description: t("settings.rows.help.description"),
           type: "navigate",
         },
         {
           id: "logout",
           icon: <LogOut className="h-5 w-5" />,
           iconClass: "bg-red-100 text-red-600",
-          title: "Đăng xuất",
-          description: "Thoát khỏi tài khoản hiện tại",
+          title: t("settings.rows.logout.title"),
+          description: t("settings.rows.logout.description"),
           type: "button",
           danger: true,
         },
@@ -480,9 +559,11 @@ export function SettingsView({
   const renderMainScreen = () => (
     <>
       <div className="mb-5">
-        <h2 className="text-2xl font-bold text-purple-600">Cài đặt</h2>
+        <h2 className="text-2xl font-bold text-purple-600">
+          {t("settings.title")}
+        </h2>
         <p className="mt-1 text-sm text-gray-600">
-          Quản lý tài khoản và tùy chọn của bạn
+          {t("settings.subtitle")}
         </p>
       </div>
 
@@ -512,7 +593,7 @@ export function SettingsView({
               onClick={() => setScreen("edit-profile")}
               className="rounded-lg px-3 py-2 text-sm font-semibold text-purple-600 hover:bg-purple-50"
             >
-              Chỉnh sửa
+              {t("settings.actions.edit")}
             </button>
           </div>
         )}
@@ -535,7 +616,10 @@ export function SettingsView({
 
   const renderEditProfileScreen = () => (
     <>
-      <SubHeader title="Chỉnh sửa hồ sơ" onBack={() => setScreen("main")} />
+      <SubHeader
+        title={text("Chỉnh sửa hồ sơ", "Edit profile")}
+        onBack={() => setScreen("main")}
+      />
 
       <div className="mb-5 rounded-2xl border border-gray-200 bg-white px-5 py-7 shadow-sm">
         <label className="group mx-auto block w-fit cursor-pointer text-center">
@@ -550,7 +634,7 @@ export function SettingsView({
             </span>
           </span>
           <span className="mt-3 block text-sm font-semibold text-purple-600">
-            Thay đổi ảnh đại diện
+            {text("Thay đổi ảnh đại diện", "Change avatar")}
           </span>
           <input
             type="file"
@@ -564,7 +648,7 @@ export function SettingsView({
       <div className="mb-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="grid gap-5">
           <label className="text-sm font-medium text-gray-700">
-            Họ và tên
+            {text("Họ và tên", "Full name")}
             <input
               value={displayNameInput}
               onChange={(event) => setDisplayNameInput(event.target.value)}
@@ -572,7 +656,7 @@ export function SettingsView({
             />
           </label>
           <label className="text-sm font-medium text-gray-700">
-            Tên người dùng
+            {text("Tên người dùng", "Username")}
             <div className="mt-2 flex items-center rounded-xl border border-gray-300 px-4 py-3 focus-within:border-purple-400 focus-within:ring-2 focus-within:ring-purple-100">
               <span className="mr-2 text-sm text-gray-500">@</span>
               <input
@@ -592,7 +676,7 @@ export function SettingsView({
             />
           </label>
           <label className="text-sm font-medium text-gray-700">
-            Địa điểm
+            {text("Địa điểm", "Location")}
             <input
               value={locationInput}
               onChange={(event) => setLocationInput(event.target.value)}
@@ -613,7 +697,7 @@ export function SettingsView({
 
       <div className="mb-5 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
         <h3 className="mb-5 text-base font-semibold text-gray-900">
-          Thông tin liên hệ
+          {text("Thông tin liên hệ", "Contact information")}
         </h3>
         <div className="grid gap-5">
           <label className="text-sm font-medium text-gray-700">
@@ -625,12 +709,12 @@ export function SettingsView({
             />
           </label>
           <label className="text-sm font-medium text-gray-700">
-            Số điện thoại
+            {text("Số điện thoại", "Phone number")}
             <input
               value={phoneInput}
               onChange={(event) => setPhoneInput(event.target.value)}
               className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
-              placeholder="Số điện thoại"
+              placeholder={text("Số điện thoại", "Phone number")}
             />
           </label>
         </div>
@@ -643,7 +727,9 @@ export function SettingsView({
         className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-4 text-sm font-bold text-white shadow-sm transition hover:from-purple-700 hover:to-blue-700 disabled:opacity-60"
       >
         <Save className="h-4 w-4" />
-        {isSavingProfile ? "Đang lưu..." : "Lưu thay đổi"}
+        {isSavingProfile
+          ? text("Đang lưu...", "Saving...")
+          : text("Lưu thay đổi", "Save changes")}
       </button>
     </>
   );
@@ -654,43 +740,46 @@ export function SettingsView({
         id: "likes" as const,
         icon: <Heart className="h-5 w-5" />,
         iconClass: "bg-pink-100 text-pink-600",
-        title: "Lượt thích",
-        description: "Khi ai do thich bài viết cua ban",
+        title: text("Lượt thích", "Likes"),
+        description: text("Khi ai đó thích bài viết của bạn", "When someone likes your post"),
         value: notificationPrefs.likes,
       },
       {
         id: "comments" as const,
         icon: <MessageSquare className="h-5 w-5" />,
         iconClass: "bg-sky-100 text-sky-600",
-        title: "Bình luận",
-        description: "Khi ai do bình luận bài viết cua ban",
+        title: text("Bình luận", "Comments"),
+        description: text("Khi ai đó bình luận bài viết của bạn", "When someone comments on your post"),
         value: notificationPrefs.comments,
       },
       {
         id: "follows" as const,
         icon: <Users className="h-5 w-5" />,
         iconClass: "bg-emerald-100 text-emerald-600",
-        title: "Theo dõi mới",
-        description: "Khi có người theo dõi bạn",
+        title: text("Theo dõi mới", "New follows"),
+        description: text("Khi có người theo dõi bạn", "When someone follows you"),
         value: notificationPrefs.follows,
       },
       {
         id: "messages" as const,
         icon: <Mail className="h-5 w-5" />,
         iconClass: "bg-orange-100 text-orange-600",
-        title: "Tin nhắn",
-        description: "Khi bạn nhận được tin nhắn mới",
+        title: text("Tin nhắn", "Messages"),
+        description: text("Khi bạn nhận được tin nhắn mới", "When you receive a new message"),
         value: notificationPrefs.messages,
       },
     ];
 
     return (
       <>
-        <SubHeader title="Cài đặt thong bao" onBack={() => setScreen("main")} />
+        <SubHeader
+          title={text("Cài đặt thông báo", "Notification settings")}
+          onBack={() => setScreen("main")}
+        />
 
         <section className="mb-5">
           <h3 className="mb-2 px-1 text-xs font-bold uppercase tracking-wide text-gray-400">
-            Thông báo day
+            {text("Thông báo đẩy", "Push notifications")}
           </h3>
           <button
             type="button"
@@ -702,22 +791,25 @@ export function SettingsView({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-gray-900">
-                Bật thông báo đẩy
+                {text("Bật thông báo đẩy", "Enable push notifications")}
               </span>
               <span className="mt-0.5 block text-xs text-gray-500">
-                Nhan thong bao ngày ca khi khong mo app
+                {text(
+                  "Nhận thông báo ngay cả khi không mở app",
+                  "Receive notifications even when the app is closed",
+                )}
               </span>
             </span>
             <SettingsToggle
               checked={settings.notifications}
-              label="Bật thông báo đẩy"
+              label={text("Bật thông báo đẩy", "Enable push notifications")}
             />
           </button>
         </section>
 
         <section>
           <h3 className="mb-2 px-1 text-xs font-bold uppercase tracking-wide text-gray-400">
-            Loại thông báo
+            {text("Loại thông báo", "Notification types")}
           </h3>
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             {rows.map((row) => (
@@ -749,58 +841,188 @@ export function SettingsView({
     );
   };
 
+  const renderAppearanceScreen = () => (
+    <>
+      <SubHeader title={t("settings.appearance.title")} onBack={() => setScreen("main")} />
+
+      <section className="mb-5">
+        <h3 className="mb-2 px-1 text-xs font-bold uppercase tracking-wide text-gray-400">
+          {t("settings.appearance.display")}
+        </h3>
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <button
+            type="button"
+            onClick={() => setScreen("language")}
+            className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-gray-50"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-100 text-teal-600">
+              <Globe className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-gray-900">
+                {t("settings.rows.language.title")}
+              </span>
+              <span className="mt-0.5 block text-xs text-gray-500">
+                {selectedLanguage.nativeLabel}
+              </span>
+            </span>
+          </button>
+        </div>
+      </section>
+
+    </>
+  );
+
+  const renderLanguageScreen = () => (
+    <>
+      <SubHeader title={t("settings.language.title")} onBack={() => setScreen("main")} />
+
+      <section className="mb-5">
+        <h3 className="mb-2 px-1 text-xs font-bold uppercase tracking-wide text-gray-400">
+          {t("settings.language.available")}
+        </h3>
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          {LANGUAGE_OPTIONS.map((option) => {
+            const isActive = settings.language === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => void handleLanguageChange(option.id)}
+                className={`flex w-full items-center gap-3 border-b border-gray-100 px-5 py-4 text-left last:border-b-0 hover:bg-gray-50 ${
+                  isActive ? "bg-purple-50" : ""
+                }`}
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-100 text-teal-600">
+                  <Globe className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-gray-900">
+                    {option.nativeLabel}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-gray-500">
+                    {option.label}
+                  </span>
+                </span>
+                {isActive ? <Check className="h-5 w-5 text-purple-600" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <p className="rounded-2xl bg-white px-5 py-4 text-sm leading-6 text-gray-600 shadow-sm">
+        {t("settings.language.note")}
+      </p>
+    </>
+  );
+
   const renderHelpScreen = () => {
     const faqItems = [
-      "Làm thế nào để thay đổi ảnh đại diện?",
-      "Toi có the xoa bài viết cua minh khong?",
-      "Tài khoản rieng tu hoat dong nhu the nao?",
-      "Làm thế nào để báo cáo một tài khoản?",
+      {
+        question: text("Làm thế nào để thay đổi ảnh đại diện?", "How do I change my avatar?"),
+        answer: text(
+          "Vào Cài đặt > Chỉnh sửa hồ sơ, bấm Thay đổi ảnh đại diện, chọn ảnh và lưu thay đổi.",
+          "Open Settings > Edit profile, choose Change avatar, select an image, then save changes.",
+        ),
+      },
+      {
+        question: text("Tôi có thể xóa bài viết của mình không?", "Can I delete my own post?"),
+        answer: text(
+          "Có. Mở menu ba chấm trên bài viết của bạn rồi chọn Xóa bài viết.",
+          "Yes. Open the three-dot menu on your post and choose Delete post.",
+        ),
+      },
+      {
+        question: text(
+          "Tài khoản riêng tư hoạt động như thế nào?",
+          "How does a private account work?",
+        ),
+        answer: text(
+          "Khi bật tài khoản riêng tư, yêu cầu theo dõi mới sẽ ở trạng thái chờ cho đến khi bạn chấp nhận.",
+          "When private account is enabled, new follow requests stay pending until you approve them.",
+        ),
+      },
+      {
+        question: text("Làm thế nào để báo cáo một tài khoản?", "How do I report an account?"),
+        answer: text(
+          "Mở trang cá nhân của tài khoản đó, chọn menu ba chấm và chọn Báo cáo tài khoản.",
+          "Open that account profile, use the three-dot menu, and choose Report account.",
+        ),
+      },
     ];
     const supportItems = [
       {
         icon: <Mail className="h-5 w-5" />,
         iconClass: "bg-sky-100 text-sky-600",
-        title: "Gửi email hỗ trợ",
+        title: text("Gửi email hỗ trợ", "Send support email"),
         description: "support@socialmini.com",
-      },
-      {
-        icon: <MessageCircle className="h-5 w-5" />,
-        iconClass: "bg-emerald-100 text-emerald-600",
-        title: "Chat trực tiếp",
-        description: "Hỗ trợ 24/7",
+        onClick: () => {
+          window.location.href = "mailto:support@socialmini.com";
+        },
       },
       {
         icon: <FileText className="h-5 w-5" />,
         iconClass: "bg-purple-100 text-purple-600",
-        title: "Điều khoản dịch vụ",
+        title: text("Điều khoản dịch vụ", "Terms of service"),
+        description: text("Quy định sử dụng Social Mini", "Social Mini usage rules"),
+        onClick: () =>
+          toast.info(
+            text(
+              "Điều khoản: sử dụng lịch sự, không spam, không đăng nội dung vi phạm pháp luật.",
+              "Terms: be respectful, do not spam, and do not post illegal content.",
+            ),
+          ),
       },
       {
         icon: <Shield className="h-5 w-5" />,
         iconClass: "bg-gray-100 text-gray-600",
-        title: "Chính sách bảo mật",
+        title: text("Chính sách bảo mật", "Privacy policy"),
+        description: text("Cách Social Mini bảo vệ dữ liệu", "How Social Mini protects data"),
+        onClick: () =>
+          toast.info(
+            text(
+              "Chính sách bảo mật: thông tin tài khoản chỉ dùng cho đăng nhập, hồ sơ và tính năng mạng xã hội.",
+              "Privacy policy: account information is used only for login, profile, and social features.",
+            ),
+          ),
       },
     ];
 
     return (
       <>
-        <SubHeader title="Tro giup & Hỗ trợ" onBack={() => setScreen("main")} />
+        <SubHeader
+          title={text("Trợ giúp & Hỗ trợ", "Help & Support")}
+          onBack={() => setScreen("main")}
+        />
 
         <section className="mb-5">
           <h3 className="mb-2 px-1 text-xs font-bold uppercase tracking-wide text-gray-400">
-            Câu hỏi thường gặp
+            {text("Câu hỏi thường gặp", "Frequently asked questions")}
           </h3>
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            {faqItems.map((item) => (
+            {faqItems.map((item, index) => (
               <button
-                key={item}
+                key={item.question}
                 type="button"
                 onClick={() =>
-                  toast.info("Nội dung hướng dẫn đang được cập nhật.")
+                  setOpenFaqIndex((current) => (current === index ? null : index))
                 }
-                className="flex w-full items-center justify-between border-b border-gray-100 px-5 py-4 text-left text-sm font-medium text-gray-900 last:border-b-0 hover:bg-gray-50"
+                className="w-full border-b border-gray-100 px-5 py-4 text-left last:border-b-0 hover:bg-gray-50"
               >
-                <span>{item}</span>
-                <ChevronDown className="h-4 w-4 text-gray-400" />
+                <span className="flex items-center justify-between gap-3 text-sm font-medium text-gray-900">
+                  <span>{item.question}</span>
+                  <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${
+                      openFaqIndex === index ? "rotate-180" : ""
+                    }`}
+                  />
+                </span>
+                {openFaqIndex === index ? (
+                  <span className="mt-2 block text-sm leading-6 text-gray-600">
+                    {item.answer}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
@@ -808,14 +1030,14 @@ export function SettingsView({
 
         <section>
           <h3 className="mb-2 px-1 text-xs font-bold uppercase tracking-wide text-gray-400">
-            Liên hệ hỗ trợ
+            {text("Liên hệ hỗ trợ", "Contact support")}
           </h3>
           <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             {supportItems.map((item) => (
               <button
                 key={item.title}
                 type="button"
-                onClick={() => toast.info("Tính năng này đang được cập nhật.")}
+                onClick={item.onClick}
                 className="flex w-full items-center gap-3 border-b border-gray-100 px-5 py-4 text-left last:border-b-0 hover:bg-gray-50"
               >
                 <span
@@ -847,6 +1069,8 @@ export function SettingsView({
       {screen === "main" ? renderMainScreen() : null}
       {screen === "edit-profile" ? renderEditProfileScreen() : null}
       {screen === "notifications" ? renderNotificationsScreen() : null}
+      {screen === "appearance" ? renderAppearanceScreen() : null}
+      {screen === "language" ? renderLanguageScreen() : null}
       {screen === "help" ? renderHelpScreen() : null}
     </div>
   );

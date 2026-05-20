@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, Pressable, StyleSheet, ViewStyle } from "react-native";
 import { AlertTriangle, RefreshCw } from "lucide-react-native";
 import { palette } from "../../theme";
+import { useLanguage } from "../../store/LanguageContext";
 
 interface Props {
   message?: string;
@@ -10,18 +11,19 @@ interface Props {
 }
 
 export function ErrorView({
-  message = "Đã xảy ra lỗi. Vui lòng thử lại.",
+  message,
   onRetry,
   style,
 }: Props) {
+  const { t } = useLanguage();
   return (
     <View style={[styles.container, style]}>
       <AlertTriangle color={palette.danger} size={48} />
-      <Text style={styles.message}>{message}</Text>
+      <Text style={styles.message}>{message || t("Đã xảy ra lỗi. Vui lòng thử lại.", "Something went wrong. Please try again.")}</Text>
       {onRetry ? (
         <Pressable onPress={onRetry} style={styles.retryBtn}>
           <RefreshCw color="#fff" size={16} style={styles.retryIcon} />
-          <Text style={styles.retryText}>Thử lại</Text>
+          <Text style={styles.retryText}>{t("Thử lại", "Try again")}</Text>
         </Pressable>
       ) : null}
     </View>

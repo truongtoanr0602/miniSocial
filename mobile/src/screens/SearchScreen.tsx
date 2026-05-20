@@ -9,6 +9,7 @@ import { ENDPOINTS } from "../api/endpoints";
 import PostItem from "../components/PostItem";
 import { ScreenGradient } from "../components/common/ScreenGradient";
 import { useAuth } from "../store/AuthContext";
+import { useLanguage } from "../store/LanguageContext";
 import { palette } from "../theme";
 import type { IPost } from "../types/models";
 
@@ -30,6 +31,7 @@ type SearchResult = {
 
 export default function SearchScreen({ navigation }: any) {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -91,7 +93,7 @@ export default function SearchScreen({ navigation }: any) {
   const renderItem = useCallback(
     ({ item }: { item: SearchResult }) => {
       if (item.type === "user") {
-        const displayName = item.display_name || item.username || "Người dùng";
+        const displayName = item.display_name || item.username || t("Người dùng", "User");
         const avatarUri =
           item.avatar_url ||
           `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7c3aed&color=fff`;
@@ -118,7 +120,7 @@ export default function SearchScreen({ navigation }: any) {
             </View>
             {isCurrentUser ? (
               <View style={styles.selfBadge}>
-                <Text style={styles.selfText}>Bạn</Text>
+                <Text style={styles.selfText}>{t("Bạn", "You")}</Text>
               </View>
             ) : (
               <Pressable
@@ -130,7 +132,7 @@ export default function SearchScreen({ navigation }: any) {
                   style={styles.messageBtn}
                 >
                   <MessageCircle color="#fff" size={14} style={styles.messageIcon} />
-                  <Text style={styles.messageText}>Nhắn tin</Text>
+                  <Text style={styles.messageText}>{t("Nhắn tin", "Message")}</Text>
                 </LinearGradient>
               </Pressable>
             )}
@@ -148,7 +150,7 @@ export default function SearchScreen({ navigation }: any) {
         </View>
       );
     },
-    [navigation, q, startConversation, submit, user],
+    [navigation, q, startConversation, submit, t, user],
   );
 
   const keyExtractor = useCallback(
@@ -162,13 +164,13 @@ export default function SearchScreen({ navigation }: any) {
   const ListHeader = () => (
     <View style={styles.headerContainer}>
       <View style={styles.searchCard}>
-        <Text style={styles.searchTitle}>Tìm kiếm</Text>
+        <Text style={styles.searchTitle}>{t("Tìm kiếm", "Search")}</Text>
         <View style={styles.searchInputWrapper}>
           <SearchIcon color={palette.muted} size={20} />
           <TextInput
             value={q}
             onChangeText={onSearchChange}
-            placeholder="Tìm kiếm người dùng, bài viết, hashtag"
+            placeholder={t("Tìm kiếm người dùng, bài viết, hashtag", "Search users, posts, hashtags")}
             style={styles.searchInput}
             placeholderTextColor={palette.muted}
             autoCapitalize="none"
@@ -180,12 +182,12 @@ export default function SearchScreen({ navigation }: any) {
         <View style={styles.summaryRow}>
           {usersCount > 0 ? (
             <View style={styles.summaryBadge}>
-              <Text style={styles.summaryText}>{usersCount} người dùng</Text>
+              <Text style={styles.summaryText}>{usersCount} {t("người dùng", "users")}</Text>
             </View>
           ) : null}
           {postsCount > 0 ? (
             <View style={styles.summaryBadge}>
-              <Text style={styles.summaryText}>{postsCount} bài viết</Text>
+              <Text style={styles.summaryText}>{postsCount} {t("bài viết", "posts")}</Text>
             </View>
           ) : null}
         </View>
@@ -193,7 +195,7 @@ export default function SearchScreen({ navigation }: any) {
 
       {q.trim() && results.length === 0 && !loading ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>Không tìm thấy kết quả cho "{q}"</Text>
+          <Text style={styles.emptyText}>{t("Không tìm thấy kết quả cho", "No results for")} "{q}"</Text>
         </View>
       ) : null}
     </View>

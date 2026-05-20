@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import mongoose from "mongoose";
 import Message from "../models/Message.js";
 import Conversation from "../models/Conversation.js";
+import { uploadAndCompressImage, uploadRawFile } from "../services/minioService.js";
 import { getReceiverSocketId, getIo } from "../sockets/state.js";
 import { successResponse, errorResponse } from "../utils/response.js";
 
@@ -32,18 +33,25 @@ export const getConversations = async (
       });
 
     // Ẩn bản thân khỏi danh sách participants để FE dễ dùng
-    const result = conversations.map((conv: any) => {
+    const result = await Promise.all(conversations.map(async (conv: any) => {
       const other = (conv.participants as any[]).find(
         (p) => p._id.toString() !== userId,
       );
+      const unreadCount = await Message.countDocuments({
+        conversationId: conv._id,
+        receiver: new mongoose.Types.ObjectId(userId),
+        readAt: null,
+        deletedBy: { $ne: new mongoose.Types.ObjectId(userId) },
+      });
+
       return {
         _id: conv._id,
         partner: other ?? null,
         lastMessage: conv.lastMessage,
-        unreadCount: conv.unreadCount.get(userId) ?? 0,
+        unreadCount,
         updatedAt: conv.updatedAt,
       };
-    });
+    }));
 
     successResponse(
       req,
@@ -222,7 +230,8 @@ export const sendMessage = async (
   try {
     const senderId = req.userId as string;
     const { conversationId } = req.params as { conversationId: string };
-    const { content, messageType = "text", mediaUrl } = req.body;
+    const uploadedFile = (req as any).file as Express.Multer.File | undefined;
+    let { content = "", messageType = "text", mediaUrl } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(conversationId)) {
       errorResponse(
@@ -232,6 +241,26 @@ export const sendMessage = async (
         400,
         "INVALID_CONVERSATION_ID",
       );
+      return;
+    }
+
+    if (uploadedFile) {
+      const isImage = uploadedFile.mimetype.startsWith("image/");
+      messageType = isImage ? "image" : "file";
+      mediaUrl = isImage
+        ? await uploadAndCompressImage(uploadedFile.buffer)
+        : await uploadRawFile(
+            uploadedFile.buffer,
+            uploadedFile.originalname,
+            uploadedFile.mimetype,
+          );
+      if (!content?.trim()) {
+        content = uploadedFile.originalname;
+      }
+    }
+
+    if (!["text", "image", "file"].includes(messageType)) {
+      errorResponse(req, res, "chat.INVALID_MESSAGE_TYPE", 400, "INVALID_MESSAGE_TYPE");
       return;
     }
 

@@ -1,17 +1,28 @@
 import * as ImagePicker from "expo-image-picker";
-import React, { useState, useCallback } from "react";
-import { Pressable, Text, TextInput, View, Alert } from "react-native";
+import React, { useState } from "react";
+import { Pressable, Text, TextInput, View } from "react-native";
 import { Image } from "expo-image";
 import { Image as ImageIcon, Video, Smile } from "lucide-react-native";
 import { api } from "../api/client";
 import { ENDPOINTS } from "../api/endpoints";
 import { ui, palette } from "../theme";
 import { useAuth } from "../store/AuthContext";
+import { useLanguage } from "../store/LanguageContext";
+
+const FEELINGS = [
+  { id: "happy", label: "vui vẻ", labelEn: "happy" },
+  { id: "grateful", label: "biết ơn", labelEn: "grateful" },
+  { id: "excited", label: "hào hứng", labelEn: "excited" },
+  { id: "relaxed", label: "thư giãn", labelEn: "relaxed" },
+];
 
 export default function PostComposer({ onCreated }: { onCreated: () => void }) {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [content, setContent] = useState("");
-  const [imageUri, setImageUri] = useState("");
+  const [mediaUri, setMediaUri] = useState("");
+  const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
+  const [feeling, setFeeling] = useState("");
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -19,40 +30,61 @@ export default function PostComposer({ onCreated }: { onCreated: () => void }) {
       quality: 0.7,
     });
     if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
+      setMediaUri(result.assets[0].uri);
+      setMediaType("image");
+    }
+  };
+
+  const pickVideo = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      quality: 0.7,
+    });
+    if (!result.canceled) {
+      setMediaUri(result.assets[0].uri);
+      setMediaType("video");
     }
   };
 
   const submit = async () => {
-    if (!content.trim() && !imageUri) return;
+    const selectedFeeling = FEELINGS.find((option) => option.id === feeling);
+    const finalContent = [
+      content.trim(),
+      selectedFeeling
+        ? `${t("Đang cảm thấy", "Feeling")} ${t(selectedFeeling.label, selectedFeeling.labelEn)}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    if (!finalContent && !mediaUri) return;
     try {
       const formData = new FormData() as any;
-      formData.append("content", content);
-      if (imageUri) {
+      formData.append("content", finalContent);
+      if (mediaUri && mediaType) {
         formData.append("images", {
-          uri: imageUri,
-          name: "post.jpg",
-          type: "image/jpeg",
+          uri: mediaUri,
+          name: mediaType === "video" ? "post.mp4" : "post.jpg",
+          type: mediaType === "video" ? "video/mp4" : "image/jpeg",
         });
       }
       await api.post(ENDPOINTS.CREATE_POST, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setContent("");
-      setImageUri("");
+      setMediaUri("");
+      setMediaType(null);
+      setFeeling("");
       onCreated();
     } catch (e) {
       console.error("[PostComposer] Create post error:", e);
     }
   };
 
-  const handleVideoFeature = useCallback(() => {
-    Alert.alert("Video", "Tính năng đăng video đang được phát triển.");
-  }, []);
-
-  const handleFeelingFeature = useCallback(() => {
-    Alert.alert("Cảm xúc", "Tính năng cảm xúc đang được phát triển.");
-  }, []);
+  const toggleFeeling = () => {
+    const currentIndex = FEELINGS.findIndex((option) => option.id === feeling);
+    setFeeling(FEELINGS[(currentIndex + 1) % FEELINGS.length].id);
+  };
+  const selectedFeeling = FEELINGS.find((option) => option.id === feeling);
 
   const userAvatar =
     (user as any)?.avatar_url ||
@@ -70,7 +102,7 @@ export default function PostComposer({ onCreated }: { onCreated: () => void }) {
         <TextInput
           value={content}
           onChangeText={setContent}
-          placeholder="Bạn đang nghĩ gì?"
+          placeholder={t("Bạn đang nghĩ gì?", "What are you thinking?")}
           style={{
             flex: 1,
             backgroundColor: "#f3f4f6",
@@ -83,13 +115,30 @@ export default function PostComposer({ onCreated }: { onCreated: () => void }) {
         />
       </View>
 
-      {imageUri ? (
+      {mediaUri ? (
         <View style={{ marginBottom: 16 }}>
-          <Image
-            source={{ uri: imageUri }}
-            style={{ width: "100%", height: 200, borderRadius: 12 }}
-            contentFit="cover"
-          />
+          {mediaType === "image" ? (
+            <Image
+              source={{ uri: mediaUri }}
+              style={{ width: "100%", height: 200, borderRadius: 12 }}
+              contentFit="cover"
+            />
+          ) : (
+            <View
+              style={{
+                height: 120,
+                borderRadius: 12,
+                backgroundColor: "#111827",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Video color="#fff" size={28} />
+              <Text style={{ color: "#fff", marginTop: 8, fontWeight: "700" }}>
+                {t("Video đã chọn", "Video selected")}
+              </Text>
+            </View>
+          )}
           <Pressable
             style={{
               position: "absolute",
@@ -99,7 +148,10 @@ export default function PostComposer({ onCreated }: { onCreated: () => void }) {
               borderRadius: 12,
               padding: 4,
             }}
-            onPress={() => setImageUri("")}
+            onPress={() => {
+              setMediaUri("");
+              setMediaType(null);
+            }}
           >
             <Text style={{ color: "#fff", fontWeight: "bold" }}>X</Text>
           </Pressable>
@@ -123,11 +175,11 @@ export default function PostComposer({ onCreated }: { onCreated: () => void }) {
           <Text
             style={{ color: palette.muted, marginLeft: 8, fontWeight: "500" }}
           >
-            Ảnh
+            {t("Ảnh", "Photo")}
           </Text>
         </Pressable>
         <Pressable
-          onPress={handleVideoFeature}
+          onPress={pickVideo}
           style={{ flexDirection: "row", alignItems: "center", padding: 8 }}
         >
           <Video color="#f43f5e" size={24} />
@@ -138,19 +190,21 @@ export default function PostComposer({ onCreated }: { onCreated: () => void }) {
           </Text>
         </Pressable>
         <Pressable
-          onPress={handleFeelingFeature}
+          onPress={toggleFeeling}
           style={{ flexDirection: "row", alignItems: "center", padding: 8 }}
         >
           <Smile color="#f5a524" size={24} />
           <Text
             style={{ color: palette.muted, marginLeft: 8, fontWeight: "500" }}
           >
-            Cảm xúc
+            {selectedFeeling
+              ? t(selectedFeeling.label, selectedFeeling.labelEn)
+              : t("Cảm xúc", "Feeling")}
           </Text>
         </Pressable>
       </View>
 
-      {content.trim() || imageUri ? (
+      {content.trim() || mediaUri || feeling ? (
         <Pressable
           onPress={submit}
           style={{
@@ -162,7 +216,7 @@ export default function PostComposer({ onCreated }: { onCreated: () => void }) {
           }}
         >
           <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
-            Đăng bài
+            {t("Đăng bài", "Post")}
           </Text>
         </Pressable>
       ) : null}

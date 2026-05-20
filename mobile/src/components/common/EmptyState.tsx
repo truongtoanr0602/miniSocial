@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, ViewStyle } from "react-native";
 import { Inbox } from "lucide-react-native";
 import { palette } from "../../theme";
+import { useLanguage } from "../../store/LanguageContext";
 
 interface Props {
   icon?: React.ReactNode;
@@ -13,16 +14,17 @@ interface Props {
 
 export function EmptyState({
   icon,
-  title = "Không có dữ liệu",
-  message = "Chưa có nội dung nào ở đây",
+  title,
+  message,
   action,
   style,
 }: Props) {
+  const { t } = useLanguage();
   return (
     <View style={[styles.container, style]}>
       {icon ? icon : <Inbox color={palette.muted} size={48} />}
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.message}>{message}</Text>
+      <Text style={styles.title}>{title || t("Không có dữ liệu", "No data")}</Text>
+      <Text style={styles.message}>{message || t("Chưa có nội dung nào ở đây", "There is no content here yet")}</Text>
       {action ? action : null}
     </View>
   );

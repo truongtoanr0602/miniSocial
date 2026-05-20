@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Pressable, Text, TextInput, View, StyleSheet, Alert } from "react-native";
 import { Mail, Lock, User, AtSign, ArrowRight, Eye, EyeOff, Send } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -6,42 +6,52 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "../store/AuthContext";
+import { useLanguage } from "../store/LanguageContext";
 import { api } from "../api/client";
 import { ENDPOINTS } from "../api/endpoints";
 import { ui, palette } from "../theme";
 import { ScreenGradient } from "../components/common/ScreenGradient";
 
-// ── Zod Schema ──
-const registerSchema = z.object({
-  username: z
-    .string()
-    .min(3, "Tên tài khoản phải có ít nhất 3 ký tự")
-    .max(30, "Tên tài khoản tối đa 30 ký tự")
-    .regex(/^[a-zA-Z0-9_]+$/, "Chỉ chấp nhận chữ cái, số và dấu gạch dưới"),
-  display_name: z
-    .string()
-    .min(1, "Vui lòng nhập tên hiển thị")
-    .max(50, "Tên hiển thị tối đa 50 ký tự"),
-  email: z
-    .string()
-    .min(1, "Vui lòng nhập email")
-    .email("Email không hợp lệ"),
-  password: z
-    .string()
-    .min(6, "Mật khẩu phải có ít nhất 6 ký tự"),
-  otp: z
-    .string()
-    .min(1, "Vui lòng nhập mã OTP"),
-});
-
-type RegisterFormData = z.infer<typeof registerSchema>;
+type RegisterFormData = {
+  username: string;
+  display_name: string;
+  email: string;
+  password: string;
+  otp: string;
+};
 
 export default function RegisterScreen({ navigation }: any) {
   const { register } = useAuth();
+  const { t } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
+  const registerSchema = useMemo(
+    () =>
+      z.object({
+        username: z
+          .string()
+          .min(3, t("Tên tài khoản phải có ít nhất 3 ký tự", "Username must be at least 3 characters"))
+          .max(30, t("Tên tài khoản tối đa 30 ký tự", "Username must be at most 30 characters"))
+          .regex(/^[a-zA-Z0-9_]+$/, t("Chỉ chấp nhận chữ cái, số và dấu gạch dưới", "Only letters, numbers, and underscores are accepted")),
+        display_name: z
+          .string()
+          .min(1, t("Vui lòng nhập tên hiển thị", "Please enter a display name"))
+          .max(50, t("Tên hiển thị tối đa 50 ký tự", "Display name must be at most 50 characters")),
+        email: z
+          .string()
+          .min(1, t("Vui lòng nhập email", "Please enter an email"))
+          .email(t("Email không hợp lệ", "Invalid email")),
+        password: z
+          .string()
+          .min(6, t("Mật khẩu phải có ít nhất 6 ký tự", "Password must be at least 6 characters")),
+        otp: z
+          .string()
+          .min(1, t("Vui lòng nhập mã OTP", "Please enter the OTP code")),
+      }),
+    [t],
+  );
 
   const {
     control,
@@ -62,7 +72,7 @@ export default function RegisterScreen({ navigation }: any) {
   const sendOtp = async () => {
     const email = getValues("email");
     if (!email || !email.includes("@")) {
-      setServerError("Vui lòng nhập email hợp lệ trước khi gửi OTP");
+      setServerError(t("Vui lòng nhập email hợp lệ trước khi gửi OTP", "Please enter a valid email before sending OTP"));
       return;
     }
     try {
@@ -70,9 +80,9 @@ export default function RegisterScreen({ navigation }: any) {
       setServerError("");
       await api.post(ENDPOINTS.SEND_EMAIL_OTP, { email });
       setOtpSent(true);
-      Alert.alert("Thành công", "Mã OTP đã được gửi đến email của bạn");
+      Alert.alert(t("Thành công", "Success"), t("Mã OTP đã được gửi đến email của bạn", "OTP has been sent to your email"));
     } catch (error: any) {
-      setServerError(error.response?.data?.message || "Gửi OTP thất bại");
+      setServerError(error.response?.data?.message || t("Gửi OTP thất bại", "Failed to send OTP"));
     } finally {
       setSendingOtp(false);
     }
@@ -81,7 +91,7 @@ export default function RegisterScreen({ navigation }: any) {
   const onSubmit = async (data: RegisterFormData) => {
     setServerError("");
     if (!otpSent) {
-      setServerError("Vui lòng gửi mã OTP trước khi đăng ký");
+      setServerError(t("Vui lòng gửi mã OTP trước khi đăng ký", "Please send OTP before registering"));
       return;
     }
     const result = await register({
@@ -92,25 +102,25 @@ export default function RegisterScreen({ navigation }: any) {
       otp: data.otp.trim(),
     });
     if (result.ok) {
-      Alert.alert("Thành công", "Đăng ký thành công! Đăng nhập ngày.", [
+      Alert.alert(t("Thành công", "Success"), t("Đăng ký thành công! Đăng nhập ngay.", "Registration successful. Please log in."), [
         { text: "OK", onPress: () => navigation.navigate("Login") },
       ]);
     } else {
-      setServerError(result.message || "Đăng ký thất bại");
+      setServerError(result.message || t("Đăng ký thất bại", "Registration failed"));
     }
   };
 
   return (
     <ScreenGradient style={ui.page}>
       <View style={styles.header}>
-        <Text style={ui.title}>Đăng ký</Text>
-        <Text style={ui.subtitle}>Tạo hồ sơ của bạn để tham gia mạng xã hội</Text>
+        <Text style={ui.title}>{t("Đăng ký", "Register")}</Text>
+        <Text style={ui.subtitle}>{t("Tạo hồ sơ của bạn để tham gia mạng xã hội", "Create your profile to join the social network")}</Text>
       </View>
 
       <View style={ui.card}>
         {/* Username */}
         <View style={styles.field}>
-          <Text style={styles.label}>Tên tài khoản</Text>
+          <Text style={styles.label}>{t("Tên tài khoản", "Username")}</Text>
           <Controller
             control={control}
             name="username"
@@ -121,7 +131,7 @@ export default function RegisterScreen({ navigation }: any) {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
-                  placeholder="Nhập tên tài khoản (a-z, 0-9, _)"
+                  placeholder={t("Nhập tên tài khoản (a-z, 0-9, _)", "Enter username (a-z, 0-9, _)")}
                   style={ui.input}
                   autoCapitalize="none"
                   placeholderTextColor={palette.muted}
@@ -136,7 +146,7 @@ export default function RegisterScreen({ navigation }: any) {
 
         {/* Display Name */}
         <View style={styles.field}>
-          <Text style={styles.label}>Tên hiển thị</Text>
+          <Text style={styles.label}>{t("Tên hiển thị", "Display name")}</Text>
           <Controller
             control={control}
             name="display_name"
@@ -147,7 +157,7 @@ export default function RegisterScreen({ navigation }: any) {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
-                  placeholder="Nhập họ và tên"
+                  placeholder={t("Nhập họ và tên", "Enter full name")}
                   style={ui.input}
                   placeholderTextColor={palette.muted}
                 />
@@ -172,7 +182,7 @@ export default function RegisterScreen({ navigation }: any) {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
-                  placeholder="Nhập email"
+                  placeholder={t("Nhập email", "Enter email")}
                   style={ui.input}
                   autoCapitalize="none"
                   keyboardType="email-address"
@@ -188,7 +198,7 @@ export default function RegisterScreen({ navigation }: any) {
 
         {/* Password */}
         <View style={styles.field}>
-          <Text style={styles.label}>Mật khẩu</Text>
+          <Text style={styles.label}>{t("Mật khẩu", "Password")}</Text>
           <Controller
             control={control}
             name="password"
@@ -199,7 +209,7 @@ export default function RegisterScreen({ navigation }: any) {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
-                  placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)"
+                  placeholder={t("Nhập mật khẩu (tối thiểu 6 ký tự)", "Enter password (minimum 6 characters)")}
                   secureTextEntry={!showPassword}
                   style={ui.input}
                   placeholderTextColor={palette.muted}
@@ -222,12 +232,12 @@ export default function RegisterScreen({ navigation }: any) {
         {/* OTP */}
         <View style={styles.field}>
           <View style={styles.otpHeader}>
-            <Text style={styles.label}>Mã OTP</Text>
+            <Text style={styles.label}>{t("Mã OTP", "OTP code")}</Text>
             <Pressable onPress={sendOtp} disabled={sendingOtp || otpSent}>
               <View style={[styles.otpBtn, otpSent ? styles.otpSentBtn : null]}>
                 <Send color={otpSent ? "#22c55e" : palette.primary} size={14} style={styles.otpBtnIcon} />
                 <Text style={[styles.otpBtnText, otpSent ? styles.otpSentText : null]}>
-                  {sendingOtp ? "Đang gửi..." : otpSent ? "Đã gửi ✓" : "Gửi OTP"}
+                  {sendingOtp ? t("Đang gửi...", "Sending...") : otpSent ? t("Đã gửi", "Sent") : t("Gửi OTP", "Send OTP")}
                 </Text>
               </View>
             </Pressable>
@@ -241,7 +251,7 @@ export default function RegisterScreen({ navigation }: any) {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
-                  placeholder="Nhập mã OTP từ email"
+                  placeholder={t("Nhập mã OTP từ email", "Enter OTP from email")}
                   style={ui.input}
                   keyboardType="number-pad"
                   placeholderTextColor={palette.muted}
@@ -272,7 +282,7 @@ export default function RegisterScreen({ navigation }: any) {
               style={[ui.button, isSubmitting ? styles.disabled : null]}
             >
               <Text style={ui.buttonText}>
-                {isSubmitting ? "Đang xử lý..." : "Đăng ký"}
+                {isSubmitting ? t("Đang xử lý...", "Processing...") : t("Đăng ký", "Register")}
               </Text>
               {!isSubmitting ? (
                 <ArrowRight color="#fff" size={20} style={styles.arrowIcon} />
@@ -286,7 +296,7 @@ export default function RegisterScreen({ navigation }: any) {
           onPress={() => navigation.navigate("Login")}
         >
           <Text style={styles.loginLink}>
-            Đã có tài khoản? <Text style={ui.buttonGhostText}>Đăng nhập</Text>
+            {t("Đã có tài khoản?", "Already have an account?")} <Text style={ui.buttonGhostText}>{t("Đăng nhập", "Log in")}</Text>
           </Text>
         </Pressable>
       </View>

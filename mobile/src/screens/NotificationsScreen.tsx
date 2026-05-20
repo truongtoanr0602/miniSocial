@@ -7,6 +7,7 @@ import { api } from "../api/client";
 import { ENDPOINTS } from "../api/endpoints";
 import { palette } from "../theme";
 import { ScreenGradient } from "../components/common/ScreenGradient";
+import { useLanguage } from "../store/LanguageContext";
 import type { INotification, IUser } from "../types/models";
 
 const FlashListAny = FlashList as any;
@@ -22,18 +23,19 @@ const getNotificationIcon = (type: string) => {
   }
 };
 
-const getNotificationText = (type: string) => {
+const getNotificationText = (type: string, t: (vi: string, en: string) => string) => {
   switch (type) {
-    case "like": return "đã thích bài viết của bạn";
-    case "comment": return "đã bình luận bài viết của bạn";
-    case "follow": return "đã bắt đầu theo dõi bạn";
-    case "mention": return "đã nhắc đến bạn";
-    case "share": return "đã chia sẻ bài viết của bạn";
-    default: return "đã tương tác với bạn";
+    case "like": return t("đã thích bài viết của bạn", "liked your post");
+    case "comment": return t("đã bình luận bài viết của bạn", "commented on your post");
+    case "follow": return t("đã bắt đầu theo dõi bạn", "started following you");
+    case "mention": return t("đã nhắc đến bạn", "mentioned you");
+    case "share": return t("đã chia sẻ bài viết của bạn", "shared your post");
+    default: return t("đã tương tác với bạn", "interacted with you");
   }
 };
 
 export default function NotificationsScreen() {
+  const { t } = useLanguage();
   const [notifications, setNotifications] = useState<INotification[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -77,7 +79,7 @@ export default function NotificationsScreen() {
 
   const renderItem = useCallback(({ item }: { item: INotification }) => {
     const sender = (typeof item.sender_id === "object" ? item.sender_id : null) as IUser | null;
-    const senderName = sender?.display_name || sender?.username || "Ai đó";
+    const senderName = sender?.display_name || sender?.username || t("Ai đó", "Someone");
     const senderAvatar = sender?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=7c3aed&color=fff`;
 
     return (
@@ -97,19 +99,19 @@ export default function NotificationsScreen() {
         <View style={styles.notifContent}>
           <Text style={styles.notifText}>
             <Text style={styles.notifSender}>{senderName}</Text>
-            {" "}{item.message || getNotificationText(item.type)}
+            {" "}{item.message || getNotificationText(item.type, t)}
           </Text>
           <View style={styles.notifTime}>
             <Clock color={palette.muted} size={12} />
             <Text style={styles.notifTimeText}>
-              {new Date(item.created_at).toLocaleDateString("vi-VN")}
+              {new Date(item.created_at).toLocaleDateString(t("vi-VN", "en-US"))}
             </Text>
           </View>
         </View>
         {!item.is_read ? <View style={styles.unreadDot} /> : null}
       </Pressable>
     );
-  }, [markAsRead]);
+  }, [markAsRead, t]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
@@ -118,15 +120,15 @@ export default function NotificationsScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerTitle}>Thông báo</Text>
+            <Text style={styles.headerTitle}>{t("Thông báo", "Notifications")}</Text>
             {unreadCount > 0 ? (
-              <Text style={styles.headerSubtitle}>{unreadCount} chưa đọc</Text>
+              <Text style={styles.headerSubtitle}>{unreadCount} {t("chưa đọc", "unread")}</Text>
             ) : null}
           </View>
           {unreadCount > 0 ? (
             <Pressable onPress={markAllAsRead} style={styles.markAllBtn}>
               <CheckCheck color={palette.primary} size={16} />
-              <Text style={styles.markAllText}>Đã đọc tất cả</Text>
+              <Text style={styles.markAllText}>{t("Đã đọc tất cả", "Mark all read")}</Text>
             </Pressable>
           ) : null}
         </View>

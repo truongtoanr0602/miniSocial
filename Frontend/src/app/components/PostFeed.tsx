@@ -2,8 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { Camera, Loader2, Smile, Video } from "lucide-react";
 import { toast } from "sonner";
 import { PostCard } from "./PostCard";
+import { CreatePostModal } from "./CreatePostModal";
 import apiClient from "../../services/api";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
+import { useLangText } from "../../hooks/useLangText";
+import { sharePostLink } from "../../utils/share";
 import type { IPost } from "../../types/models";
 
 interface PostFeedProps {
@@ -16,7 +19,9 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
   const [posts, setPosts] = useState<IPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLocalComposerOpen, setIsLocalComposerOpen] = useState(false);
   const currentUser = useCurrentUser();
+  const text = useLangText();
 
   const fetchPosts = useCallback(async () => {
     const token = localStorage.getItem("userToken");
@@ -32,12 +37,12 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
       setError(null);
     } catch (err: any) {
       if (err.response?.status !== 401) {
-        setError(err.response?.data?.message || "Lỗi tải bảng tin");
+        setError(err.response?.data?.message || text("Lỗi tải bảng tin", "Could not load feed"));
       }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [text]);
 
   useEffect(() => {
     fetchPosts();
@@ -66,9 +71,9 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
       );
     } catch (err) {
       console.error("Lỗi thích bài viết:", err);
-      toast.error("Không thể cập nhật lượt thích.");
+      toast.error(text("Không thể cập nhật lượt thích.", "Could not update like."));
     }
-  }, []);
+  }, [text]);
 
   const handleCommentCreated = useCallback((postId: string) => {
     setPosts((prev) =>
@@ -94,16 +99,36 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
     setPosts((prev) => prev.filter((post) => post._id !== postId));
   }, []);
 
-  const handleShare = useCallback(() => {
-    toast.info("Tính năng chia sẻ đang được cập nhật.");
-  }, []);
+  const handleShare = useCallback(async (postId: string) => {
+    try {
+      const response = await apiClient.post(`/post/${postId}/share`);
+      const shares = response.data.data?.shares;
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                stats: {
+                  ...post.stats,
+                  shares: typeof shares === "number" ? shares : post.stats.shares + 1,
+                },
+              }
+            : post,
+        ),
+      );
+      await sharePostLink(postId);
+    } catch (err) {
+      console.error("Share failed:", err);
+      toast.error(text("Không thể chia sẻ bài viết.", "Could not share post."));
+    }
+  }, [text]);
 
   const handleOpenCreatePost = useCallback(() => {
     if (onCreatePost) {
       onCreatePost();
       return;
     }
-    toast.info("Tính năng tạo bài viết đang được cập nhật.");
+    setIsLocalComposerOpen(true);
   }, [onCreatePost]);
 
   const userName = currentUser?.display_name || currentUser?.username || "U";
@@ -117,7 +142,7 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
       <div className="space-y-6 pb-6">
         <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-12 flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
-          <span className="ml-3 text-gray-500">Đang tải bảng tin...</span>
+          <span className="ml-3 text-gray-500">{text("Đang tải bảng tin...", "Loading feed...")}</span>
         </div>
       </div>
     );
@@ -132,7 +157,7 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
             onClick={fetchPosts}
             className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all"
           >
-            Thử lại
+            {text("Thử lại", "Try again")}
           </button>
         </div>
       </div>
@@ -140,13 +165,14 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
   }
 
   return (
+    <>
     <div className="space-y-6 pb-6">
       <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-4 border border-gray-200/50">
         <div className="flex items-center space-x-3">
           <img src={userAvatar} alt="Your avatar" className="w-12 h-12 rounded-full object-cover" />
           <input
             type="text"
-            placeholder="Bạn đang nghĩ gì?"
+            placeholder={text("Bạn đang nghĩ gì?", "What are you thinking?")}
             className="flex-1 px-4 py-3 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500"
             readOnly
             onClick={handleOpenCreatePost}
@@ -158,7 +184,7 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
             className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition-all"
           >
             <Camera className="w-5 h-5 text-green-600" />
-            <span className="text-sm text-gray-600 hidden sm:inline">Ảnh</span>
+            <span className="text-sm text-gray-600 hidden sm:inline">{text("Ảnh", "Photo")}</span>
           </button>
           <button
             onClick={handleOpenCreatePost}
@@ -172,16 +198,16 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
             className="flex items-center space-x-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition-all"
           >
             <Smile className="w-5 h-5 text-yellow-600" />
-            <span className="text-sm text-gray-600 hidden sm:inline">Cảm xúc</span>
+            <span className="text-sm text-gray-600 hidden sm:inline">{text("Cảm xúc", "Feeling")}</span>
           </button>
         </div>
       </div>
 
       {posts.length === 0 ? (
         <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-12 text-center">
-          <p className="text-gray-500 font-medium">Chưa có bài viết nào</p>
+          <p className="text-gray-500 font-medium">{text("Chưa có bài viết nào", "No posts yet")}</p>
           <p className="text-sm text-gray-400 mt-1">
-            Hãy tạo bài viết đầu tiên hoặc theo dõi ai đó.
+            {text("Hãy tạo bài viết đầu tiên hoặc theo dõi ai đó.", "Create the first post or follow someone.")}
           </p>
         </div>
       ) : (
@@ -199,5 +225,11 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
         ))
       )}
     </div>
+    <CreatePostModal
+      isOpen={isLocalComposerOpen}
+      onClose={() => setIsLocalComposerOpen(false)}
+      onPostCreated={() => void fetchPosts()}
+    />
+    </>
   );
 }

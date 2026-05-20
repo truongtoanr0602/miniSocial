@@ -4,6 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import apiClient from "../../services/api";
+import { useLangText } from "../../hooks/useLangText";
 
 // Helper function to check if a string is a phone number
 const isPhoneNumber = (value: string): boolean => {
@@ -22,6 +23,7 @@ export function RegisterView() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const text = useLangText();
 
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +46,7 @@ export function RegisterView() {
       // Chuyển sang màn hình nhập OTP
       setStep(2);
     } catch (error: any) {
-      setError(error.response?.data?.message || 'Lỗi gửi OTP!');
+      setError(error.response?.data?.message || text("Lỗi gửi OTP!", "Could not send OTP!"));
     }
   };
 
@@ -64,10 +66,10 @@ export function RegisterView() {
         otp: otp
       });
 
-      alert("Đăng ký thành công!");
+      alert(text("Đăng ký thành công!", "Registration successful!"));
       navigate('/login');
     } catch (error: any) {
-      setError(error.response?.data?.message || 'Sai mã OTP!');
+      setError(error.response?.data?.message || text("Sai mã OTP!", "Invalid OTP!"));
     }
   };
 
@@ -86,9 +88,11 @@ export function RegisterView() {
       >
         <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-7">
           <div className="text-center mb-5">
-            <h2 className="text-3xl font-bold text-gray-900 mb-1">Tạo tài khoản</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-1">{text("Tạo tài khoản", "Create account")}</h2>
             <p className="text-gray-500">
-              {step === 1 ? "Tham gia cùng cộng đồng của chúng tôi" : "Xác thực thông tin của bạn"}
+              {step === 1
+                ? text("Tham gia cùng cộng đồng của chúng tôi", "Join our community")
+                : text("Xác thực thông tin của bạn", "Verify your information")}
             </p>
           </div>
 
@@ -102,7 +106,7 @@ export function RegisterView() {
           {step === 1 && (
             <form onSubmit={handleRequestOtp} className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tên người dùng (Username)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text("Tên người dùng", "Username")}</label>
                 <div className="relative">
                   <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
@@ -111,13 +115,13 @@ export function RegisterView() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full pl-12 pr-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
-                    placeholder="Nhập tên người dùng"
+                    placeholder={text("Nhập tên người dùng", "Enter username")}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Họ và tên</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text("Họ và tên", "Full name")}</label>
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
@@ -126,13 +130,13 @@ export function RegisterView() {
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     className="w-full pl-12 pr-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
-                    placeholder="Nhập họ và tên của bạn"
+                    placeholder={text("Nhập họ và tên của bạn", "Enter your full name")}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email hoặc Số điện thoại</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text("Email hoặc Số điện thoại", "Email or phone number")}</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
@@ -141,13 +145,13 @@ export function RegisterView() {
                     value={contact}
                     onChange={(e) => setContact(e.target.value)}
                     className="w-full pl-12 pr-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
-                    placeholder="Nhập email hoặc số điện thoại"
+                    placeholder={text("Nhập email hoặc số điện thoại", "Enter email or phone number")}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text("Mật khẩu", "Password")}</label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
@@ -155,7 +159,7 @@ export function RegisterView() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full pl-12 pr-12 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                    placeholder="Nhập mật khẩu"
+                    placeholder={text("Nhập mật khẩu", "Enter password")}
                   />
                   <button
                     type="button"
@@ -168,7 +172,7 @@ export function RegisterView() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nhập lại mật khẩu</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text("Nhập lại mật khẩu", "Confirm password")}</label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
@@ -176,7 +180,7 @@ export function RegisterView() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="w-full pl-12 pr-12 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                    placeholder="Nhập lại mật khẩu"
+                    placeholder={text("Nhập lại mật khẩu", "Re-enter password")}
                   />
                   <button
                     type="button"
@@ -192,7 +196,7 @@ export function RegisterView() {
                 type="submit"
                 className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 font-medium group mt-4"
               >
-                <span>Tiếp tục để nhận OTP</span>
+                <span>{text("Tiếp tục để nhận OTP", "Continue to receive OTP")}</span>
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
             </form>
@@ -206,13 +210,13 @@ export function RegisterView() {
                   <Mail className="w-8 h-8 text-purple-600" />
                 </div>
                 <p className="text-gray-600 text-sm">
-                  Mã xác nhận (6 số) đã được gửi đến <br />
+                  {text("Mã xác nhận (6 số) đã được gửi đến", "The 6-digit verification code was sent to")} <br />
                   <span className="font-bold text-purple-600 text-base">{contact}</span>
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mã OTP</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{text("Mã OTP", "OTP code")}</label>
                 <input
                   type="text"
                   required
@@ -228,7 +232,7 @@ export function RegisterView() {
                 type="submit"
                 className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 font-medium mt-2"
               >
-                Xác nhận Đăng ký
+                {text("Xác nhận Đăng ký", "Confirm registration")}
               </button>
 
               <div className="mt-4 text-center">
@@ -237,7 +241,7 @@ export function RegisterView() {
                   onClick={() => setStep(1)} 
                   className="text-sm font-semibold text-gray-500 hover:text-purple-600 transition-colors"
                 >
-                  Quay lại sửa thông tin
+                  {text("Quay lại sửa thông tin", "Back to edit information")}
                 </button>
               </div>
             </form>
@@ -245,9 +249,9 @@ export function RegisterView() {
 
           {/* Dòng chữ chuyển sang Đăng nhập luôn hiện ở dưới cùng */}
           <p className="mt-8 text-center text-sm text-gray-600">
-            Đã có tài khoản?{" "}
+            {text("Đã có tài khoản?", "Already have an account?")}{" "}
             <Link to="/login" className="font-semibold text-purple-600 hover:text-purple-700 transition-colors">
-              Đăng nhập
+              {text("Đăng nhập", "Log in")}
             </Link>
           </p>
         </div>

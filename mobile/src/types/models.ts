@@ -10,6 +10,8 @@ export interface IUser {
   display_name: string;
   avatar_url: string;
   bio: string;
+  location?: string;
+  website?: string;
   following: string[];
   followers: string[];
   settings: {

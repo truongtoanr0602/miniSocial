@@ -2,6 +2,7 @@ import React, { memo, useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -19,6 +20,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { api } from "../api/client";
 import { ENDPOINTS } from "../api/endpoints";
 import { useAuth } from "../store/AuthContext";
+import { useLanguage } from "../store/LanguageContext";
 import { palette } from "../theme";
 import type { IComment, IPost, IUser } from "../types/models";
 
@@ -30,6 +32,7 @@ interface Props {
 
 function PostItem({ post, onRefresh, onOpenProfile }: Props) {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [text, setText] = useState("");
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<IComment[]>([]);
@@ -41,12 +44,13 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [likesCount, setLikesCount] = useState(post.stats?.likes || 0);
   const [commentsCount, setCommentsCount] = useState(post.stats?.comments || 0);
+  const [sharesCount, setSharesCount] = useState(post.stats?.shares || 0);
 
   const author = (
     typeof post.author_id === "object" ? post.author_id : null
   ) as IUser | null;
   const isOwner = Boolean(author?._id && (user as any)?._id === author._id);
-  const authorName = author?.display_name || author?.username || "Người dùng";
+  const authorName = author?.display_name || author?.username || t("Người dùng", "User");
   const authorAvatar =
     author?.avatar_url ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}&background=7c3aed&color=fff`;
@@ -55,6 +59,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
     setIsLiked(Boolean(post.is_liked));
     setLikesCount(post.stats?.likes || 0);
     setCommentsCount(post.stats?.comments || 0);
+    setSharesCount(post.stats?.shares || 0);
     setLocalContent(post.content || "");
     setEditText(post.content || "");
   }, [
@@ -63,6 +68,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
     post.is_liked,
     post.stats?.comments,
     post.stats?.likes,
+    post.stats?.shares,
   ]);
 
   const like = useCallback(async () => {
@@ -125,7 +131,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
   const saveEdit = useCallback(async () => {
     const nextContent = editText.trim();
     if (!nextContent && post.media.length === 0) {
-      Alert.alert("Sửa bài viết", "Nội dung không được để trống.");
+      Alert.alert(t("Sửa bài viết", "Edit post"), t("Nội dung không được để trống.", "Content cannot be empty."));
       return;
     }
 
@@ -139,15 +145,15 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
       onRefresh();
     } catch (e) {
       console.error("[PostItem] Update error:", e);
-      Alert.alert("Sửa bài viết", "Không thể cập nhật bài viết.");
+      Alert.alert(t("Sửa bài viết", "Edit post"), t("Không thể cập nhật bài viết.", "Could not update post."));
     }
-  }, [editText, onRefresh, post._id, post.media.length, post.visibility]);
+  }, [editText, onRefresh, post._id, post.media.length, post.visibility, t]);
 
   const deletePost = useCallback(() => {
-    Alert.alert("Xóa bài viết", "Bạn có chắc chắn muốn xóa bài viết này?", [
-      { text: "Hủy", style: "cancel" },
+    Alert.alert(t("Xóa bài viết", "Delete post"), t("Bạn có chắc chắn muốn xóa bài viết này?", "Are you sure you want to delete this post?"), [
+      { text: t("Hủy", "Cancel"), style: "cancel" },
       {
-        text: "Xóa",
+        text: t("Xóa", "Delete"),
         style: "destructive",
         onPress: async () => {
           try {
@@ -155,12 +161,12 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
             onRefresh();
           } catch (e) {
             console.error("[PostItem] Delete error:", e);
-            Alert.alert("Xóa bài viết", "Không thể xóa bài viết.");
+            Alert.alert(t("Xóa bài viết", "Delete post"), t("Không thể xóa bài viết.", "Could not delete post."));
           }
         },
       },
     ]);
-  }, [onRefresh, post._id]);
+  }, [onRefresh, post._id, t]);
 
   const reportPost = useCallback(async () => {
     try {
@@ -170,66 +176,78 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
         reason: "inappropriate",
         description: "Reported from mobile app",
       });
-      Alert.alert("Báo cáo", "Đã gửi báo cáo bài viết.");
+      Alert.alert(t("Báo cáo", "Report"), t("Đã gửi báo cáo bài viết.", "Post report submitted."));
     } catch (e: any) {
       console.error("[PostItem] Report error:", e);
       Alert.alert(
-        "Báo cáo",
-        e.response?.data?.message || "Không thể báo cáo bài viết.",
+        t("Báo cáo", "Report"),
+        e.response?.data?.message || t("Không thể báo cáo bài viết.", "Could not report post."),
       );
     }
-  }, [post._id]);
+  }, [post._id, t]);
 
   const blockAuthor = useCallback(() => {
     if (!author?._id) return;
-    Alert.alert("Chặn người dùng", `Bạn có muốn chặn ${authorName}?`, [
-      { text: "Hủy", style: "cancel" },
+    Alert.alert(t("Chặn người dùng", "Block user"), t(`Bạn có muốn chặn ${authorName}?`, `Do you want to block ${authorName}?`), [
+      { text: t("Hủy", "Cancel"), style: "cancel" },
       {
-        text: "Chặn",
+        text: t("Chặn", "Block"),
         style: "destructive",
         onPress: async () => {
           try {
             await api.post(ENDPOINTS.BLOCK_USER(author._id));
-            Alert.alert("Chặn người dùng", "Đã cập nhật trạng thái chặn.");
+            Alert.alert(t("Chặn người dùng", "Block user"), t("Đã cập nhật trạng thái chặn.", "Block status updated."));
             onRefresh();
           } catch (e) {
             console.error("[PostItem] Block error:", e);
-            Alert.alert("Chặn người dùng", "Không thể chặn người dùng.");
+            Alert.alert(t("Chặn người dùng", "Block user"), t("Không thể chặn người dùng.", "Could not block user."));
           }
         },
       },
     ]);
-  }, [author?._id, authorName, onRefresh]);
+  }, [author?._id, authorName, onRefresh, t]);
 
   const handleMorePress = useCallback(() => {
     if (isOwner) {
-      Alert.alert("Tùy chọn bài viết", undefined, [
-        { text: "Sửa bài viết", onPress: () => setIsEditing(true) },
-        { text: "Xóa bài viết", style: "destructive", onPress: deletePost },
-        { text: "Hủy", style: "cancel" },
+      Alert.alert(t("Tùy chọn bài viết", "Post options"), undefined, [
+        { text: t("Sửa bài viết", "Edit post"), onPress: () => setIsEditing(true) },
+        { text: t("Xóa bài viết", "Delete post"), style: "destructive", onPress: deletePost },
+        { text: t("Hủy", "Cancel"), style: "cancel" },
       ]);
       return;
     }
 
-    Alert.alert("Tùy chọn bài viết", undefined, [
-      { text: "Báo cáo bài viết", onPress: reportPost },
-      { text: "Chặn người dùng", style: "destructive", onPress: blockAuthor },
-      { text: "Hủy", style: "cancel" },
+    Alert.alert(t("Tùy chọn bài viết", "Post options"), undefined, [
+      { text: t("Báo cáo bài viết", "Report post"), onPress: reportPost },
+      { text: t("Chặn người dùng", "Block user"), style: "destructive", onPress: blockAuthor },
+      { text: t("Hủy", "Cancel"), style: "cancel" },
     ]);
-  }, [blockAuthor, deletePost, isOwner, reportPost]);
+  }, [blockAuthor, deletePost, isOwner, reportPost, t]);
 
-  const handleShare = useCallback(() => {
-    Alert.alert("Chia sẻ", "Tính năng chia sẻ bài viết đang được phát triển.");
-  }, []);
+  const handleShare = useCallback(async () => {
+    try {
+      const res = await api.post(ENDPOINTS.SHARE_POST(post._id));
+      const nextShares = res.data.data?.shares;
+      setSharesCount((prev) =>
+        typeof nextShares === "number" ? nextShares : prev + 1,
+      );
+      await Share.share({
+        message: `${t("Xem bài viết này trên Social Mini:", "View this post on Social Mini:")} ${post.content || ""}`,
+      });
+    } catch (e) {
+      console.error("[PostItem] Share error:", e);
+      Alert.alert(t("Chia sẻ", "Share"), t("Không thể chia sẻ bài viết.", "Could not share post."));
+    }
+  }, [post._id, post.content, t]);
 
   const handleBookmark = useCallback(() => {
     const nextBookmarked = !isBookmarked;
     setIsBookmarked(nextBookmarked);
     Alert.alert(
-      "Lưu bài viết",
-      nextBookmarked ? "Đã lưu bài viết." : "Đã bỏ lưu bài viết.",
+      t("Lưu bài viết", "Save post"),
+      nextBookmarked ? t("Đã lưu bài viết.", "Post saved.") : t("Đã bỏ lưu bài viết.", "Post unsaved."),
     );
-  }, [isBookmarked]);
+  }, [isBookmarked, t]);
 
   return (
     <View style={styles.cardContainer}>
@@ -250,7 +268,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
               <Text style={styles.bullet}>-</Text>
               <Text style={styles.timeText}>
                 {new Date(post.created_at || Date.now()).toLocaleDateString(
-                  "vi-VN",
+                  t("vi-VN", "en-US"),
                 )}
               </Text>
             </View>
@@ -268,7 +286,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
             onChangeText={setEditText}
             multiline
             style={styles.editInput}
-            placeholder="Cập nhật nội dung bài viết..."
+            placeholder={t("Cập nhật nội dung bài viết...", "Update post content...")}
             placeholderTextColor={palette.muted}
           />
           <View style={styles.editActions}>
@@ -279,10 +297,10 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
               }}
               style={styles.editCancelBtn}
             >
-              <Text style={styles.editCancelText}>Hủy</Text>
+              <Text style={styles.editCancelText}>{t("Hủy", "Cancel")}</Text>
             </Pressable>
             <Pressable onPress={saveEdit} style={styles.editSaveBtn}>
-              <Text style={styles.editSaveText}>Lưu</Text>
+              <Text style={styles.editSaveText}>{t("Lưu", "Save")}</Text>
             </Pressable>
           </View>
         </View>
@@ -320,11 +338,11 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
               <Text style={styles.emojiText}>+</Text>
             </View>
           </View>
-          <Text style={styles.statsText}>{likesCount} lượt thích</Text>
+          <Text style={styles.statsText}>{likesCount} {t("lượt thích", "likes")}</Text>
         </View>
         <View style={styles.otherStats}>
-          <Text style={styles.statsText}>{commentsCount} bình luận</Text>
-          <Text style={styles.statsText}>{post.stats?.shares || 0} chia sẻ</Text>
+          <Text style={styles.statsText}>{commentsCount} {t("bình luận", "comments")}</Text>
+          <Text style={styles.statsText}>{sharesCount} {t("chia sẻ", "shares")}</Text>
         </View>
       </View>
 
@@ -338,16 +356,16 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
           <Text
             style={[styles.actionBtnText, isLiked ? styles.likedText : null]}
           >
-            Thích
+            {t("Thích", "Like")}
           </Text>
         </Pressable>
         <Pressable onPress={toggleComments} style={styles.actionBtn}>
           <MessageCircle color={palette.muted} size={22} />
-          <Text style={styles.actionBtnText}>Bình luận</Text>
+          <Text style={styles.actionBtnText}>{t("Bình luận", "Comment")}</Text>
         </Pressable>
         <Pressable onPress={handleShare} style={styles.actionBtn}>
           <Share2 color={palette.muted} size={22} />
-          <Text style={styles.actionBtnText}>Chia sẻ</Text>
+          <Text style={styles.actionBtnText}>{t("Chia sẻ", "Share")}</Text>
         </Pressable>
         <Pressable onPress={handleBookmark} style={styles.bookmarkBtn}>
           <Bookmark
@@ -371,7 +389,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
               <TextInput
                 value={text}
                 onChangeText={setText}
-                placeholder="Viết bình luận..."
+                placeholder={t("Viết bình luận...", "Write a comment...")}
                 placeholderTextColor={palette.muted}
                 style={styles.input}
                 onSubmitEditing={submitComment}
@@ -383,17 +401,17 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
                   end={{ x: 1, y: 0 }}
                   style={styles.sendBtn}
                 >
-                  <Text style={styles.sendBtnText}>Gửi</Text>
+                  <Text style={styles.sendBtnText}>{t("Gửi", "Send")}</Text>
                 </LinearGradient>
               </Pressable>
             </View>
           </View>
 
           {loadingComments ? (
-            <Text style={styles.loadingCommentsText}>Đang tải bình luận...</Text>
+            <Text style={styles.loadingCommentsText}>{t("Đang tải bình luận...", "Loading comments...")}</Text>
           ) : comments.length === 0 ? (
             <Text style={styles.noCommentsText}>
-              Chưa có bình luận nào. Hãy là người đầu tiên.
+              {t("Chưa có bình luận nào. Hãy là người đầu tiên.", "No comments yet. Be the first.")}
             </Text>
           ) : (
             comments.map((comment) => {
@@ -405,7 +423,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
               const commentAuthorName =
                 commentAuthor?.display_name ||
                 commentAuthor?.username ||
-                "Người dùng";
+                t("Người dùng", "User");
               const commentAuthorAvatar =
                 commentAuthor?.avatar_url ||
                 `https://ui-avatars.com/api/?name=${encodeURIComponent(commentAuthorName)}&background=7c3aed&color=fff`;

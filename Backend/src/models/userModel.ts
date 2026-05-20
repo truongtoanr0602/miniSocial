@@ -8,6 +8,8 @@ export interface IUser extends Document {
     display_name: string;
     avatar_url: string;
     bio: string;
+    location?: string;
+    website?: string;
     following: mongoose.Types.ObjectId[];
     followers: mongoose.Types.ObjectId[];
     settings: {
@@ -28,6 +30,8 @@ const userSchema: Schema = new Schema({
     display_name: { type: String, required: true, trim: true },
     avatar_url: { type: String, default: 'avatars/default_profile.webp' },
     bio: { type: String, default: '' },
+    location: { type: String, default: '', trim: true },
+    website: { type: String, default: '', trim: true },
     following: { type: [mongoose.Schema.Types.ObjectId], ref: 'User' },
     followers: { type: [mongoose.Schema.Types.ObjectId], ref: 'User' },
     settings: {

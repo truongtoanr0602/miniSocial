@@ -52,7 +52,17 @@ export const updateProfile = async (
 ): Promise<void> => {
   try {
     const userId = (req as any).userId; // Lấy ID từ Token
-    const { display_name, bio } = req.body;
+    const {
+      display_name,
+      username,
+      bio,
+      email,
+      phone_number,
+      location,
+      website,
+      privacy,
+      language,
+    } = req.body;
 
     let avatarUrl = undefined;
 
@@ -61,14 +71,24 @@ export const updateProfile = async (
       avatarUrl = await uploadAndCompressImage(req.file.buffer);
     }
 
+    const updateData: Record<string, unknown> = {};
+    if (display_name?.trim()) updateData.display_name = display_name.trim();
+    if (username?.trim()) updateData.username = username.trim().toLowerCase();
+    if (bio !== undefined) updateData.bio = String(bio).trim();
+    if (email?.trim()) updateData.email = email.trim().toLowerCase();
+    if (phone_number?.trim()) updateData.phone_number = phone_number.trim();
+    if (location !== undefined) updateData.location = String(location).trim();
+    if (website !== undefined) updateData.website = String(website).trim();
+    if (avatarUrl) updateData.avatar_url = avatarUrl;
+    if (["public", "friends", "private"].includes(privacy)) {
+      updateData["settings.privacy"] = privacy;
+    }
+    if (language?.trim()) updateData["settings.language"] = language.trim();
+
     // Cập nhật vào DB
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      {
-        ...(display_name && { display_name }),
-        ...(bio !== undefined && { bio }),
-        ...(avatarUrl && { avatar_url: avatarUrl }),
-      },
+      updateData,
       { new: true }, // Trả về data mới sau khi update
     ).select("-password_hash");
 

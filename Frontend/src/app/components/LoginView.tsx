@@ -4,9 +4,11 @@ import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { authService } from "../../services/authService";
+import { useLangText } from "../../hooks/useLangText";
 
 
 export function LoginView() {
+  const text = useLangText();
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -28,7 +30,7 @@ export function LoginView() {
       // Security fix: không log token ra console
       navigate('/'); 
     } catch (error: any) {
-      const serverMessage = error.response?.data?.message || 'Lỗi kết nối server!';
+      const serverMessage = error.response?.data?.message || text("Lỗi kết nối server!", "Server connection error!");
       setError(serverMessage);
     }
   };
@@ -53,7 +55,7 @@ export function LoginView() {
       navigate('/'); 
     } catch (error: any) {
       console.error("Lỗi xác thực Google:", error);
-      alert(error.response?.data?.message || 'Lỗi xác thực Google với Server!');
+      alert(error.response?.data?.message || text("Lỗi xác thực Google với Server!", "Google authentication failed on the server!"));
     }
   };
 
@@ -75,8 +77,8 @@ export function LoginView() {
             <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg mx-auto mb-6 transform rotate-12 hover:rotate-0 transition-transform duration-300">
               <span className="text-white text-3xl font-bold">S</span>
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Chào mừng trở lại</h2>
-            <p className="text-gray-500">Đăng nhập để kết nối với bạn bè</p>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">{text("Chào mừng trở lại", "Welcome back")}</h2>
+            <p className="text-gray-500">{text("Đăng nhập để kết nối với bạn bè", "Log in to connect with friends")}</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
@@ -89,7 +91,7 @@ export function LoginView() {
 
             {/* Input Email hoặc Số điện thoại */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email hoặc số điện thoại</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{text("Email hoặc số điện thoại", "Email or phone number")}</label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
@@ -98,7 +100,7 @@ export function LoginView() {
                   value={account}
                   onChange={(e) => setAccount(e.target.value)}
                   className="w-full pl-12 pr-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
-                  placeholder="Nhập email hoặc số điện thoại"
+                  placeholder={text("Nhập email hoặc số điện thoại", "Enter email or phone number")}
                 />
               </div>
             </div>
@@ -106,9 +108,9 @@ export function LoginView() {
             {/* Input Mật khẩu */}
             <div>
               <div className="flex item-center justify-between mb-2">
-      <label className="text-sm font-medium text-gray-700">Mật khẩu</label>
+      <label className="text-sm font-medium text-gray-700">{text("Mật khẩu", "Password")}</label>
       <Link to="/forgot-password" className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition-colors">
-              Quên mật khẩu
+              {text("Quên mật khẩu", "Forgot password")}
             </Link>
       
       </div>
@@ -120,7 +122,7 @@ export function LoginView() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full pl-12 pr-12 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-          placeholder="Nhập mật khẩu"
+          placeholder={text("Nhập mật khẩu", "Enter password")}
         />
         {/* Nút bật/tắt mắt */}
         <button
@@ -138,7 +140,7 @@ export function LoginView() {
               type="submit"
               className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 font-medium group"
             >
-              <span>Đăng nhập</span>
+              <span>{text("Đăng nhập", "Log in")}</span>
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
           </form>
@@ -150,7 +152,7 @@ export function LoginView() {
                 <div className="w-full border-t border-gray-200"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Hoặc tiếp tục với</span>
+                <span className="px-2 bg-white text-gray-500">{text("Hoặc tiếp tục với", "Or continue with")}</span>
               </div>
             </div>
 
@@ -158,7 +160,7 @@ export function LoginView() {
               <div className="w-full max-w-[250px] overflow-hidden rounded-xl border border-gray-200 hover:shadow-sm transition-all">
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
-                  onError={() => alert('Đăng nhập Google thất bại!')}
+                  onError={() => alert(text("Đăng nhập Google thất bại!", "Google login failed!"))}
                   useOneTap
                   theme="outline"
                   shape="rectangular"
@@ -169,9 +171,9 @@ export function LoginView() {
           </div>
 
           <p className="mt-8 text-center text-sm text-gray-600">
-            Chưa có tài khoản?{" "}
+            {text("Chưa có tài khoản?", "No account yet?")}{" "}
             <Link to="/register" className="font-semibold text-purple-600 hover:text-purple-700 transition-colors">
-              Đăng ký ngày
+              {text("Đăng ký ngay", "Sign up now")}
             </Link>
           </p>
         </div>

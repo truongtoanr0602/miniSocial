@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Pressable, Text, TextInput, View, StyleSheet } from "react-native";
 import { Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -6,25 +6,32 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "../store/AuthContext";
+import { useLanguage } from "../store/LanguageContext";
 import { ui, palette } from "../theme";
 import { ScreenGradient } from "../components/common/ScreenGradient";
 
-// ── Zod Schema ──
-const loginSchema = z.object({
-  account: z
-    .string()
-    .min(1, "Vui lòng nhập email hoặc số điện thoại"),
-  password: z
-    .string()
-    .min(6, "Mật khẩu phải có ít nhất 6 ký tự"),
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
+type LoginFormData = {
+  account: string;
+  password: string;
+};
 
 export default function LoginScreen({ navigation }: any) {
   const { login } = useAuth();
+  const { t } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState("");
+  const loginSchema = useMemo(
+    () =>
+      z.object({
+        account: z
+          .string()
+          .min(1, t("Vui lòng nhập email hoặc số điện thoại", "Please enter an email or phone number")),
+        password: z
+          .string()
+          .min(6, t("Mật khẩu phải có ít nhất 6 ký tự", "Password must be at least 6 characters")),
+      }),
+    [t],
+  );
 
   const {
     control,
@@ -39,7 +46,7 @@ export default function LoginScreen({ navigation }: any) {
     setServerError("");
     const result = await login(data.account, data.password);
     if (!result.ok) {
-      setServerError(result.message || "Đăng nhập thất bại");
+      setServerError(result.message || t("Đăng nhập thất bại", "Login failed"));
     }
   };
 
@@ -52,14 +59,14 @@ export default function LoginScreen({ navigation }: any) {
         >
           <Text style={styles.logoText}>S</Text>
         </LinearGradient>
-        <Text style={ui.title}>Chào mừng trở lại</Text>
-        <Text style={ui.subtitle}>Đăng nhập để kết nối với bạn bè</Text>
+        <Text style={ui.title}>{t("Chào mừng trở lại", "Welcome back")}</Text>
+        <Text style={ui.subtitle}>{t("Đăng nhập để kết nối với bạn bè", "Log in to connect with friends")}</Text>
       </View>
 
       <View style={ui.card}>
         {/* Email / Phone */}
         <View style={styles.field}>
-          <Text style={styles.label}>Email hoặc số điện thoại</Text>
+          <Text style={styles.label}>{t("Email hoặc số điện thoại", "Email or phone number")}</Text>
           <Controller
             control={control}
             name="account"
@@ -70,7 +77,7 @@ export default function LoginScreen({ navigation }: any) {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
-                  placeholder="Nhập email hoặc số điện thoại"
+                  placeholder={t("Nhập email hoặc số điện thoại", "Enter email or phone number")}
                   style={ui.input}
                   autoCapitalize="none"
                   placeholderTextColor={palette.muted}
@@ -86,8 +93,8 @@ export default function LoginScreen({ navigation }: any) {
         {/* Password */}
         <View style={styles.field}>
           <View style={styles.passwordHeader}>
-            <Text style={styles.label}>Mật khẩu</Text>
-            <Text style={styles.forgotLink}>Quên mật khẩu</Text>
+            <Text style={styles.label}>{t("Mật khẩu", "Password")}</Text>
+            <Text style={styles.forgotLink}>{t("Quên mật khẩu", "Forgot password")}</Text>
           </View>
           <Controller
             control={control}
@@ -99,7 +106,7 @@ export default function LoginScreen({ navigation }: any) {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
-                  placeholder="Nhập mật khẩu"
+                  placeholder={t("Nhập mật khẩu", "Enter password")}
                   secureTextEntry={!showPassword}
                   style={ui.input}
                   placeholderTextColor={palette.muted}
@@ -136,7 +143,7 @@ export default function LoginScreen({ navigation }: any) {
               style={[ui.button, isSubmitting ? styles.disabled : null]}
             >
               <Text style={ui.buttonText}>
-                {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
+                {isSubmitting ? t("Đang đăng nhập...", "Logging in...") : t("Đăng nhập", "Log in")}
               </Text>
               {!isSubmitting ? (
                 <ArrowRight color="#fff" size={20} style={styles.arrowIcon} />
@@ -150,7 +157,7 @@ export default function LoginScreen({ navigation }: any) {
           onPress={() => navigation.navigate("Register")}
         >
           <Text style={styles.registerLink}>
-            Chưa có tài khoản? <Text style={ui.buttonGhostText}>Đăng ký ngày</Text>
+            {t("Chưa có tài khoản?", "No account yet?")} <Text style={ui.buttonGhostText}>{t("Đăng ký ngay", "Sign up now")}</Text>
           </Text>
         </Pressable>
       </View>
