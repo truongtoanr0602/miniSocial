@@ -1,5 +1,15 @@
 import React, { memo, useCallback, useEffect, useState } from "react";
 import {
+  Bookmark,
+  Heart,
+  MessageCircle,
+  MoreHorizontal,
+  Share2,
+  Volume2, 
+  VolumeX
+} from "lucide-react-native";
+import { Video, ResizeMode } from 'expo-av';
+import {
   Alert,
   Pressable,
   Share,
@@ -8,13 +18,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  Bookmark,
-  Heart,
-  MessageCircle,
-  MoreHorizontal,
-  Share2,
-} from "lucide-react-native";
+
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { api } from "../api/client";
@@ -23,6 +27,29 @@ import { useAuth } from "../store/AuthContext";
 import { useLanguage } from "../store/LanguageContext";
 import { palette } from "../theme";
 import type { IComment, IPost, IUser } from "../types/models";
+import { API_BASE_URL, BASE_URL } from "~/api/config";
+import { fa } from "zod/v4/locales";
+
+const getValidMediaUrl = (url?: string) => {
+  if (!url) return "";
+  let formattedUrl = url.replace(/\\/g, '/');
+  
+  const MINIO_URL = "http://192.168.0.101:9000"; // Nhớ giữ IP thật của bạn
+  
+  if (formattedUrl.includes("localhost") || formattedUrl.includes("127.0.0.1") || formattedUrl.includes(":3000")) {
+    formattedUrl = formattedUrl.replace(/http:\/\/[^/]+/g, MINIO_URL);
+  } else if (!formattedUrl.startsWith("http")) {
+    formattedUrl = `${MINIO_URL}${formattedUrl.startsWith('/') ? '' : '/'}${formattedUrl}`;
+  }
+  return formattedUrl;
+};
+
+// 3. THÊM HÀM NÀY ĐỂ NHẬN DIỆN VIDEO
+const checkIsVideo = (url?: string) => {
+  if (!url) return false;
+  // Nhận diện nếu đuôi file là mp4, mov, hoặc webm
+  return /\.(mp4|mov|webm)$/i.test(url);
+};
 
 interface Props {
   post: IPost;
@@ -45,6 +72,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
   const [likesCount, setLikesCount] = useState(post.stats?.likes || 0);
   const [commentsCount, setCommentsCount] = useState(post.stats?.comments || 0);
   const [sharesCount, setSharesCount] = useState(post.stats?.shares || 0);
+  const [isMuted, setIsMuted] = useState(false);
 
   const author = (
     typeof post.author_id === "object" ? post.author_id : null
@@ -52,7 +80,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
   const isOwner = Boolean(author?._id && (user as any)?._id === author._id);
   const authorName = author?.display_name || author?.username || t("Người dùng", "User");
   const authorAvatar =
-    author?.avatar_url ||
+    (author?.avatar_url ? getValidMediaUrl(author.avatar_url) : null) ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}&background=7c3aed&color=fff`;
 
   useEffect(() => {
@@ -239,6 +267,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
       Alert.alert(t("Chia sẻ", "Share"), t("Không thể chia sẻ bài viết.", "Could not share post."));
     }
   }, [post._id, post.content, t]);
+  
 
   const handleBookmark = useCallback(() => {
     const nextBookmarked = !isBookmarked;
@@ -248,6 +277,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
       nextBookmarked ? t("Đã lưu bài viết.", "Post saved.") : t("Đã bỏ lưu bài viết.", "Post unsaved."),
     );
   }, [isBookmarked, t]);
+  
 
   return (
     <View style={styles.cardContainer}>
@@ -257,7 +287,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
           style={styles.userInfoRow}
         >
           <Image
-            source={{ uri: authorAvatar }}
+            source={{ uri: getValidMediaUrl(authorAvatar) }}
             style={styles.avatar}
             contentFit="cover"
           />
@@ -311,12 +341,47 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
       ) : null}
 
       {post.media && post.media.length > 0 ? (
-        <Image
-          source={{ uri: post.media[0].url }}
-          style={styles.mediaImage}
-          contentFit="cover"
-        />
+        <View> 
+          
+          {checkIsVideo(post.media[0].url) ? (
+            <View style={styles.mediaVideoContainer}>
+              <Video
+                source={{ uri: getValidMediaUrl(post.media[0].url) }}
+                // ✅ THUỘC TÍNH QUAN TRỌNG: Tự động điều chỉnh tỷ lệ theo video gốc
+                resizeMode={ResizeMode.CONTAIN} // Hoặc dùng ResizeMode.CONTAIN nếu muốn hiện viền đen
+                
+                // ✅ BẬT BỘ ĐIỀU KHIỂN CHUẨN (PLAY, PAUSE, TUA, MUTE,...)
+                useNativeControls={true} // Chỉ cần một dòng này để có tất cả!
+                
+                // ✅ CẤU HÌNH TRẠNG THÁI KHỞI ĐẦU (Tùy chọn)
+                shouldPlay={false} // Không tự chạy (đã tắt theo yêu cầu trước)
+                
+                isMuted={isMuted}
+                
+                // ✅ Tùy chọn: Thêm chiều cao tối đa để feed gọn gàng
+                style={styles.mediaVideo}
+              />
+              <Pressable 
+                style={styles.customMuteBtn} 
+                onPress={() => setIsMuted(!isMuted)} // Bấm vào thì đảo ngược trạng thái
+              >
+                {isMuted ? (
+                  <VolumeX color="#fff" size={20} />
+                ) : (
+                  <Volume2 color="#fff" size={20} />
+                )}
+              </Pressable>
+            </View>
+          ) : (
+            <Image
+              source={{ uri: getValidMediaUrl(post.media[0].url) }}
+              style={styles.mediaImage}
+              contentFit="cover"
+            />
+          )}
+        </View>
       ) : null}
+      
 
       <View style={styles.statsRow}>
         <View style={styles.likesStats}>
@@ -523,6 +588,29 @@ const styles = StyleSheet.create({
   },
   editSaveText: { color: "#fff", fontWeight: "700" },
   mediaImage: { width: "100%", height: 300, backgroundColor: "#f3f4f6" },
+  // ✅ THÊM STYLE CHO CONTAINER VIDEO ĐỂ TỰ ĐỘNG RESIZE
+  mediaVideoContainer: { 
+    width: "100%", 
+    // Giữ tỷ lệ aspect ratio (tự động) thay vì ép chiều cao cứng
+    backgroundColor: "#111827", // Màu nền tối cho video
+    borderRadius: 12,
+    overflow: "hidden",
+    position: "relative",
+  },
+  mediaVideo: { 
+    width: "100%", 
+    aspectRatio: 1, // ✅ QUAN TRỌNG: Giúp video tự động tính chiều cao theo chiều rộng để giữ tỷ lệ gốc
+    maxHeight: 500, // Tùy chọn: Chiều cao tối đa để video không chiếm quá nhiều chỗ
+  },
+  customMuteBtn: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    backgroundColor: "rgba(0,0,0,0.6)", // Nền đen trong suốt mờ mờ
+    borderRadius: 20,
+    padding: 8,
+    zIndex: 10,
+  },
   statsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
