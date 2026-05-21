@@ -1,5 +1,9 @@
 import * as ImagePicker from "expo-image-picker";
-import React, { useEffect, useState, useCallback } from "react";
+import { io, Socket } from "socket.io-client";
+import { BASE_URL } from "../api/config";
+
+
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -29,6 +33,7 @@ import { ScreenGradient } from "../components/common/ScreenGradient";
 
 const FlashListAny = FlashList as any;
 
+
 export default function MessagesScreen({ route }: any) {
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -40,6 +45,64 @@ export default function MessagesScreen({ route }: any) {
   const [messageText, setMessageText] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const initialConversationId = route?.params?.initialConversationId;
+  // ✅ 2. ⚡️ ĐẶT HÀM Ở ĐÂY (Ngay dưới import, trên function MessagesScreen)
+// Hàm này giúp biến hình link localhost thành link IP thật trỏ về MinIO (cổng 9000)
+const getValidMediaUrl = (url?: string) => {
+  if (!url) return "";
+  
+  // Đổi TOÀN BỘ dấu gạch chéo ngược \ của Windows thành gạch chéo xuôi /
+  let formattedUrl = url.replace(/\\/g, '/');
+  
+  // Tính MinIO host từ BASE_URL (port 9000). Giữ fallback nếu parsing lỗi.
+  let MINIO_URL = "http://192.168.0.101:9000";
+  try {
+    const parsed = new URL(BASE_URL);
+    MINIO_URL = `${parsed.protocol}//${parsed.hostname}:9000`;
+  } catch (e) {
+    // fallback giữ nguyên
+  }
+
+  // Nếu link chứa localhost hoặc 127.0.0.1, ép nó về MINIO_URL
+  if (formattedUrl.includes("localhost") || formattedUrl.includes("127.0.0.1")) {
+    formattedUrl = formattedUrl.replace(/http:\/\/[^/]+/g, MINIO_URL);
+  }
+  // Nếu là đường dẫn tương đối (/messages/...) -> Nối MINIO_URL vào đầu
+  else if (!formattedUrl.startsWith("http")) {
+    formattedUrl = `${MINIO_URL}${formattedUrl.startsWith('/') ? '' : '/'}${formattedUrl}`;
+  }
+  
+  return formattedUrl;
+};
+
+const socketRef = useRef<Socket | null>(null);
+
+
+useEffect(() => {
+  // 1. Kết nối với máy chủ Socket
+  socketRef.current = io(BASE_URL);
+
+  // 2. Tham gia vào phòng chat hiện tại (Tùy Backend cấu hình)
+  if (selectedConvId) {
+    socketRef.current.emit("join_room", selectedConvId);
+  }
+
+  // 3. Lắng nghe Backend "bắn" tin nhắn mới về
+  socketRef.current.on("receive_message", (newMsg) => {
+    // Nếu tin nhắn mới thuộc về phòng chat đang mở thì nhét nó vào mảng hiển thị
+    if (newMsg.conversationId === selectedConvId || newMsg.conversation === selectedConvId) {
+      setMessages((prev) => {
+        // Kiểm tra trùng lặp để tránh hiện 2 tin giống nhau
+        const isExist = prev.some((msg) => msg._id === newMsg._id);
+        return isExist ? prev : [...prev, newMsg];
+      });
+    }
+  });
+
+  // 4. Dọn dẹp khi thoát phòng chat
+  return () => {
+    socketRef.current?.disconnect();
+  };
+}, [selectedConvId]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -77,6 +140,36 @@ export default function MessagesScreen({ route }: any) {
       console.error(e);
     }
   }, []);
+  useEffect(() => {
+    let intervalId: any;
+
+    // Nếu đang mở một phòng chat cụ thể
+    if (selectedConvId) {
+      // Thiết lập hẹn giờ: Cứ đúng 2.5 giây là âm thầm gọi hàm loadMessages 1 lần
+      intervalId = setInterval(() => {
+        loadMessages(selectedConvId);
+      }, 2500); // 2500 mili-giây = 2.5 giây
+    }
+
+    // Dọn dẹp bộ đếm giờ khi bạn bấm nút Back thoát ra ngoài (Cực kỳ quan trọng để không lag máy)
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [selectedConvId, loadMessages]);
+  // ⚡️ THÊM ĐOẠN NÀY VÀO ĐỂ LÀM MỚI TIN NHẮN LIÊN TỤC
+  useEffect(() => {
+    if (!selectedConvId) return;
+
+    // Cứ 3 giây (3000ms) sẽ âm thầm gọi API lấy tin nhắn mới 1 lần
+    const interval = setInterval(() => {
+      loadMessages(selectedConvId);
+    }, 3000);
+
+    // Bắt buộc phải có dòng này để xóa bộ đếm khi thoát phòng chat (tránh tràn RAM)
+    return () => clearInterval(interval);
+  }, [selectedConvId, loadMessages]);
 
   const markConversationRead = useCallback(async (convId: string) => {
     setConversations((prev) =>
@@ -115,10 +208,13 @@ export default function MessagesScreen({ route }: any) {
 
   const handlePickImage = useCallback(async () => {
     if (!selectedConvId || isUploadingImage) return;
+    
+    // Đã cập nhật mediaTypes thành mảng theo chuẩn mới của Expo
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
+      mediaTypes: ['images'], 
+      quality: 0.7, // Nén nhẹ xuống 70% để upload nhanh hơn, tránh timeout
     });
+    
     if (result.canceled) return;
 
     try {
@@ -126,20 +222,34 @@ export default function MessagesScreen({ route }: any) {
       const asset = result.assets[0];
       const formData = new FormData() as any;
       formData.append("messageType", "image");
+
+      // 1. Tự động lấy tên và loại file chuẩn xác, không fix cứng JPG nữa
+      const fileName = asset.fileName || `image_${Date.now()}.jpg`;
+      const mimeType = asset.mimeType || 'image/jpeg';
+      
+      // 2. Lọc đường dẫn an toàn cho cả iOS và Android
+      const fileUri = Platform.OS === 'ios' ? asset.uri.replace('file://', '') : asset.uri;
+
       formData.append("file", {
-        uri: asset.uri,
-        name: "message.jpg",
-        type: "image/jpeg",
+        uri: fileUri,
+        name: fileName,
+        type: mimeType,
       });
+
+      // 3. Ghi đè cấu hình Axios riêng cho lệnh Upload này
       const res = await api.post(ENDPOINTS.MESSAGE_UPLOAD(selectedConvId), formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: { 
+          "Content-Type": "multipart/form-data",
+        },
+        timeout: 30000, 
       });
+
       const newMsg = res.data.data || res.data;
       setMessages((prev) => [...prev, newMsg]);
       void loadConversations();
-    } catch (e) {
-      console.error(e);
-      Alert.alert(t("Gửi ảnh", "Send image"), t("Không thể gửi ảnh.", "Could not send image."));
+    } catch (e: any) {
+      console.error("[Upload Ảnh Lỗi]:", e.message || e);
+      Alert.alert(t("Gửi ảnh", "Send image"), t("Không thể gửi ảnh. Vui lòng thử lại.", "Could not send image."));
     } finally {
       setIsUploadingImage(false);
     }
@@ -231,6 +341,7 @@ export default function MessagesScreen({ route }: any) {
       </Pressable>
     );
   };
+  const scrollViewRef = useRef<any>(null);
 
   const selectedPartner = conversations.find(
     (c) => c._id === selectedConvId,
@@ -293,8 +404,15 @@ export default function MessagesScreen({ route }: any) {
 
             {/* Chat Messages */}
             <ScrollView
+              ref={scrollViewRef}
               style={{ flex: 1, padding: 16 }}
               contentContainerStyle={{ paddingBottom: 16 }}
+              
+              // 1. Tự cuộn xuống khi có tin nhắn mới (Đã có từ trước)
+              onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+              
+              // ⚡️ 2. THÊM DÒNG NÀY: Tự cuộn xuống NGAY LẬP TỨC khi vừa vẽ xong giao diện phòng chat
+              onLayout={() => scrollViewRef.current?.scrollToEnd({ animated: false })} // Để false cho nó xuất hiện ở đáy luôn, không bị hiệu ứng trượt làm rối mắt lúc mới vào
             >
               {messages.length === 0 ? (
                 <Text
@@ -308,11 +426,24 @@ export default function MessagesScreen({ route }: any) {
                 </Text>
               ) : (
                 messages.map((msg, idx) => {
-                  const senderId =
-                    typeof msg.sender === "string"
-                      ? msg.sender
-                      : msg.sender._id;
-                  const isOwn = senderId === (user as any)?._id;
+                  // ✅ ĐOẠN CODE MỚI: Bọc thép mọi trường hợp
+// 1. Lấy ID của mình (Quét cả trường hợp ._id lẫn .id)
+const rawSender = msg.sender || msg.author || msg.userId || msg.senderId || msg.user;
+
+// 2. Trích xuất ID từ biến vừa tìm được
+const senderId = typeof rawSender === "string" 
+  ? rawSender 
+  : (rawSender?._id || rawSender?.id);
+  
+// 3. Lấy ID của bạn (như cũ)
+const currentUserId = (user as any)?._id || (user as any)?.id;
+
+// 4. Ép kiểu và so sánh
+const isOwn = Boolean(
+  senderId && 
+  currentUserId && 
+  String(senderId) === String(currentUserId)
+);
                   return (
                     <View
                       key={idx}
@@ -340,7 +471,8 @@ export default function MessagesScreen({ route }: any) {
                       >
                         {msg.messageType === "image" && msg.mediaUrl ? (
                           <Image
-                            source={{ uri: msg.mediaUrl }}
+                            // ✅ CODE MỚI: Bọc qua hàm getValidMediaUrl
+                            source={{ uri: getValidMediaUrl(msg.mediaUrl) }}
                             style={{
                               width: 220,
                               height: 180,

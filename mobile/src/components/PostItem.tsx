@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useState } from "react";
+
 import {
   Bookmark,
   Heart,
@@ -12,7 +13,6 @@ import { Video, ResizeMode } from 'expo-av';
 import {
   Alert,
   Pressable,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -34,8 +34,15 @@ const getValidMediaUrl = (url?: string) => {
   if (!url) return "";
   let formattedUrl = url.replace(/\\/g, '/');
   
-  const MINIO_URL = "http://192.168.0.101:9000"; // Nhớ giữ IP thật của bạn
-  
+  // determine MinIO host based on app API host so developer doesn't need to hardcode
+  let MINIO_URL = "http://192.168.0.101:9000"; // fallback if parsing fails
+  try {
+    const parsed = new URL(BASE_URL);
+    MINIO_URL = `${parsed.protocol}//${parsed.hostname}:9000`;
+  } catch (e) {
+    // keep fallback
+  }
+
   if (formattedUrl.includes("localhost") || formattedUrl.includes("127.0.0.1") || formattedUrl.includes(":3000")) {
     formattedUrl = formattedUrl.replace(/http:\/\/[^/]+/g, MINIO_URL);
   } else if (!formattedUrl.startsWith("http")) {
@@ -50,6 +57,7 @@ const checkIsVideo = (url?: string) => {
   // Nhận diện nếu đuôi file là mp4, mov, hoặc webm
   return /\.(mp4|mov|webm)$/i.test(url);
 };
+
 
 interface Props {
   post: IPost;
@@ -256,17 +264,35 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
     try {
       const res = await api.post(ENDPOINTS.SHARE_POST(post._id));
       const nextShares = res.data.data?.shares;
-      setSharesCount((prev) =>
-        typeof nextShares === "number" ? nextShares : prev + 1,
+      setSharesCount((prev) => (typeof nextShares === "number" ? nextShares : prev + 1));
+
+      // Refresh feed so the shared post appears in news feed
+      try {
+        onRefresh();
+      } catch (e) {
+        // ignore
+      }
+
+      // Offer to view the shared post in user's profile
+      Alert.alert(
+        t("Chia sẻ", "Share"),
+        t("Bài viết đã được chia sẻ. Bạn muốn xem nó trên trang cá nhân của bạn không?", "Post shared. View it on your profile?"),
+        [
+          {
+            text: t("Xem trang cá nhân", "View profile"),
+            onPress: () => {
+              const myId = (user as any)?._id || (user as any)?.id;
+              if (myId && onOpenProfile) onOpenProfile(String(myId));
+            },
+          },
+          { text: t("Đóng", "Close"), style: "cancel" },
+        ],
       );
-      await Share.share({
-        message: `${t("Xem bài viết này trên Social Mini:", "View this post on Social Mini:")} ${post.content || ""}`,
-      });
     } catch (e) {
       console.error("[PostItem] Share error:", e);
       Alert.alert(t("Chia sẻ", "Share"), t("Không thể chia sẻ bài viết.", "Could not share post."));
     }
-  }, [post._id, post.content, t]);
+  }, [post._id, onRefresh, onOpenProfile, t, user]);
   
 
   const handleBookmark = useCallback(() => {
@@ -432,13 +458,7 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
           <Share2 color={palette.muted} size={22} />
           <Text style={styles.actionBtnText}>{t("Chia sẻ", "Share")}</Text>
         </Pressable>
-        <Pressable onPress={handleBookmark} style={styles.bookmarkBtn}>
-          <Bookmark
-            color={isBookmarked ? palette.primary : palette.muted}
-            size={22}
-            fill={isBookmarked ? palette.primary : "none"}
-          />
-        </Pressable>
+       
       </View>
 
       {showComments ? (
