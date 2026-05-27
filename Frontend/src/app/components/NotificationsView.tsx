@@ -1,6 +1,23 @@
-import { Heart, MessageCircle, UserPlus, AtSign, Share2, Clock, Check, CheckCheck, Loader2 } from "lucide-react";
-import { useNotifications, type INotification } from "../../hooks/useNotifications";
+import {
+  Heart,
+  MessageCircle,
+  UserPlus,
+  AtSign,
+  Clock,
+  Check,
+  CheckCheck,
+  Loader2,
+} from "lucide-react";
+import {
+  useNotifications,
+  type INotification,
+} from "../../hooks/useNotifications";
 import { useLangText } from "../../hooks/useLangText";
+
+interface NotificationsViewProps {
+  onOpenPost?: (postId: string) => void;
+  onOpenProfile?: (userId: string) => void;
+}
 
 const getNotificationIcon = (type: INotification["type"]) => {
   switch (type) {
@@ -12,14 +29,17 @@ const getNotificationIcon = (type: INotification["type"]) => {
       return <UserPlus className="w-5 h-5 text-purple-500" />;
     case "mention":
       return <AtSign className="w-5 h-5 text-green-500" />;
-    case "share":
-      return <Share2 className="w-5 h-5 text-orange-500" />;
+    case "system":
+      return <Heart className="w-5 h-5 text-gray-500" />;
     default:
       return <Heart className="w-5 h-5 text-gray-500" />;
   }
 };
 
-const getNotificationText = (type: INotification["type"], text: (vi: string, en: string) => string) => {
+const getNotificationText = (
+  type: INotification["type"],
+  text: (vi: string, en: string) => string,
+) => {
   switch (type) {
     case "like":
       return text("đã thích bài viết của bạn", "liked your post");
@@ -29,8 +49,6 @@ const getNotificationText = (type: INotification["type"], text: (vi: string, en:
       return text("đã bắt đầu theo dõi bạn", "started following you");
     case "mention":
       return text("đã nhắc đến bạn", "mentioned you");
-    case "share":
-      return text("đã chia sẻ bài viết của bạn", "shared your post");
     default:
       return text("đã tương tác với bạn", "interacted with you");
   }
@@ -39,12 +57,16 @@ const getNotificationText = (type: INotification["type"], text: (vi: string, en:
 /**
  * Tính thời gian tương đối từ timestamp.
  */
-function timeAgo(dateStr: string, text: (vi: string, en: string) => string): string {
+function timeAgo(
+  dateStr: string,
+  text: (vi: string, en: string) => string,
+): string {
   const now = Date.now();
   const diff = now - new Date(dateStr).getTime();
   const minutes = Math.floor(diff / 60000);
   if (minutes < 1) return text("Vừa xong", "Just now");
-  if (minutes < 60) return text(`${minutes} phút trước`, `${minutes} minutes ago`);
+  if (minutes < 60)
+    return text(`${minutes} phút trước`, `${minutes} minutes ago`);
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return text(`${hours} giờ trước`, `${hours} hours ago`);
   const days = Math.floor(hours / 24);
@@ -52,16 +74,56 @@ function timeAgo(dateStr: string, text: (vi: string, en: string) => string): str
   return new Date(dateStr).toLocaleDateString(text("vi-VN", "en-US"));
 }
 
-export function NotificationsView() {
+function getSenderId(notification: INotification): string | null {
+  const sender = notification.sender_id;
+  if (!sender) return null;
+  if (typeof sender === "string") return sender;
+  return sender._id;
+}
+
+export function NotificationsView({
+  onOpenPost,
+  onOpenProfile,
+}: NotificationsViewProps) {
   const text = useLangText();
-  const { notifications, isLoading, error, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const {
+    notifications,
+    isLoading,
+    error,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+  } = useNotifications();
+
+  const handleOpenNotification = (notification: INotification) => {
+    if (!notification.is_read) {
+      void markAsRead(notification._id);
+    }
+
+    if (notification.type === "follow") {
+      const profileId = getSenderId(notification) || notification.target_id;
+      if (profileId) onOpenProfile?.(profileId);
+      return;
+    }
+
+    if (
+      (notification.type === "like" ||
+        notification.type === "comment" ||
+        notification.type === "mention") &&
+      notification.target_id
+    ) {
+      onOpenPost?.(notification.target_id);
+    }
+  };
 
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto">
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-12 flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
-          <span className="ml-3 text-gray-500">{text("Đang tải thông báo...", "Loading notifications...")}</span>
+          <span className="ml-3 text-gray-500">
+            {text("Đang tải thông báo...", "Loading notifications...")}
+          </span>
         </div>
       </div>
     );
@@ -109,37 +171,42 @@ export function NotificationsView() {
             <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Heart className="w-8 h-8 text-purple-400" />
             </div>
-            <p className="text-gray-500 font-medium">{text("Chưa có thông báo nào", "No notifications yet")}</p>
+            <p className="text-gray-500 font-medium">
+              {text("Chưa có thông báo nào", "No notifications yet")}
+            </p>
             <p className="text-sm text-gray-400 mt-1">
-              {text("Khi có người tương tác, bạn sẽ thấy ở đây", "When someone interacts with you, you will see it here")}
+              {text(
+                "Khi có người tương tác, bạn sẽ thấy ở đây",
+                "When someone interacts with you, you will see it here",
+              )}
             </p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
             {notifications.map((notification) => {
               // Lấy thông tin sender (có thể là object hoặc string)
-              const sender = typeof notification.sender_id === "object"
-                ? notification.sender_id
-                : null;
-              const senderName = sender?.display_name || sender?.username || text("Ai đó", "Someone");
-              const senderAvatar = sender?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=7c3aed&color=fff`;
+              const sender =
+                typeof notification.sender_id === "object"
+                  ? notification.sender_id
+                  : null;
+              const senderName =
+                sender?.display_name ||
+                sender?.username ||
+                text("Ai đó", "Someone");
+              const senderAvatar =
+                sender?.avatar_url ||
+                `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=7c3aed&color=fff`;
 
               return (
                 <div
                   key={notification._id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => {
-                    if (!notification.is_read) {
-                      markAsRead(notification._id);
-                    }
-                  }}
+                  onClick={() => handleOpenNotification(notification)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      if (!notification.is_read) {
-                        markAsRead(notification._id);
-                      }
+                      handleOpenNotification(notification);
                     }
                   }}
                   className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
@@ -168,12 +235,15 @@ export function NotificationsView() {
                               {senderName}
                             </span>{" "}
                             <span className="text-gray-600">
-                              {notification.content || getNotificationText(notification.type, text)}
+                              {notification.message ||
+                                getNotificationText(notification.type, text)}
                             </span>
                           </p>
                           <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
                             <Clock className="w-3 h-3" />
-                            <span>{timeAgo(notification.createdAt, text)}</span>
+                            <span>
+                              {timeAgo(notification.created_at, text)}
+                            </span>
                           </div>
                         </div>
                       </div>

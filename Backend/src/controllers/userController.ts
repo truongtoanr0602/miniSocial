@@ -6,6 +6,7 @@ import User from "../models/userModel.js";
 import Follow from "../models/Follows.js";
 import { uploadAndCompressImage } from "../services/minioService.js";
 import { successResponse, errorResponse } from "../utils/response.js";
+import { getVisibilityFilter } from "../utils/visibilityFilter.js";
 
 // ==========================================
 // 1. LẤY THÔNG TIN PROFILE & BÀI VIẾT
@@ -18,14 +19,16 @@ export const getUserProfile = async (
     const { id } = req.params; // ID của user cần xem profile
 
     // Lấy thông tin user (giấu password đi)
-    const user = await User.findById(id).select("-password");
+    const user = await User.findById(id).select("-password_hash");
     if (!user) {
       errorResponse(req, res, "user.NOT_FOUND", 404, "NOT_FOUND");
       return;
     }
 
-    // Lấy các bài viết của user này
-    const posts = await PostModel.find({ author_id: id } as any)
+    // Lấy các bài viết của user này (filter theo quyền xem của viewer)
+    const viewerId = (req as any).userId as string | undefined;
+    const visibilityFilter = await getVisibilityFilter(viewerId, String(id));
+    const posts = await PostModel.find({ author_id: id, ...visibilityFilter } as any)
       .sort({ created_at: -1 })
       .lean();
 

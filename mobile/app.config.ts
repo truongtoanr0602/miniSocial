@@ -26,6 +26,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "photosPermission": "Allow MiniSocial to access your photos",
         "savePhotosPermission": "Allow MiniSocial to save photos"
       }
-    ]
+    ],
+    "expo-video"
   ]
 });

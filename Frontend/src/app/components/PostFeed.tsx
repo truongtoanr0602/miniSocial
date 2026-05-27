@@ -13,9 +13,15 @@ interface PostFeedProps {
   onCreatePost?: () => void;
   refreshKey?: number;
   onOpenProfile?: (userId: string) => void;
+  focusedPostId?: string | null;
 }
 
-export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFeedProps) {
+export function PostFeed({
+  onCreatePost,
+  refreshKey = 0,
+  onOpenProfile,
+  focusedPostId = null,
+}: PostFeedProps) {
   const [posts, setPosts] = useState<IPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +39,19 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
       setIsLoading(true);
       const response = await apiClient.get("/post/feed");
       const data = response.data.data;
-      setPosts(Array.isArray(data) ? data : data?.posts || []);
+      const feedPosts = Array.isArray(data) ? data : data?.posts || [];
+      if (focusedPostId && !feedPosts.some((post: IPost) => post._id === focusedPostId)) {
+        try {
+          const focusedResponse = await apiClient.get(`/post/${focusedPostId}`);
+          const focusedPost = focusedResponse.data.data;
+          setPosts(focusedPost?._id ? [focusedPost, ...feedPosts] : feedPosts);
+        } catch {
+          setPosts(feedPosts);
+          toast.error(text("Không thể mở bài viết từ thông báo.", "Could not open the notified post."));
+        }
+      } else {
+        setPosts(feedPosts);
+      }
       setError(null);
     } catch (err: any) {
       if (err.response?.status !== 401) {
@@ -42,11 +60,21 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
     } finally {
       setIsLoading(false);
     }
-  }, [text]);
+  }, [focusedPostId, text]);
 
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts, refreshKey]);
+
+  useEffect(() => {
+    if (!focusedPostId || isLoading) return;
+    window.setTimeout(() => {
+      document.getElementById(`post-${focusedPostId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 50);
+  }, [focusedPostId, isLoading, posts.length]);
 
   const handleLike = useCallback(async (postId: string) => {
     try {
@@ -221,6 +249,7 @@ export function PostFeed({ onCreatePost, refreshKey = 0, onOpenProfile }: PostFe
             onPostUpdated={handlePostUpdated}
             onPostDeleted={handlePostDeleted}
             onOpenProfile={onOpenProfile}
+            isHighlighted={post._id === focusedPostId}
           />
         ))
       )}

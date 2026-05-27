@@ -13,25 +13,25 @@ import { BASE_URL } from "../api/config";
  * const { emit, on } = useSocket(user?._id);
  * ```
  */
-export function useSocket(userId: string | undefined) {
+export function useSocket(userId: string | undefined, token?: string | null) {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !token) return;
 
     const socket = io(BASE_URL, {
       transports: ["websocket"],
       autoConnect: true,
+      auth: { token },
     });
 
-    socket.emit("register-user", userId);
     socketRef.current = socket;
 
     return () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [userId]);
+  }, [userId, token]);
 
   const emit = useCallback((event: string, ...args: unknown[]) => {
     socketRef.current?.emit(event, ...args);

@@ -9,7 +9,7 @@ import {
   Volume2, 
   VolumeX
 } from "lucide-react-native";
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import {
   Alert,
   Pressable,
@@ -27,8 +27,7 @@ import { useAuth } from "../store/AuthContext";
 import { useLanguage } from "../store/LanguageContext";
 import { palette } from "../theme";
 import type { IComment, IPost, IUser } from "../types/models";
-import { API_BASE_URL, BASE_URL } from "~/api/config";
-import { fa } from "zod/v4/locales";
+import { BASE_URL } from "~/api/config";
 
 const getValidMediaUrl = (url?: string) => {
   if (!url) return "";
@@ -371,25 +370,18 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
           
           {checkIsVideo(post.media[0].url) ? (
             <View style={styles.mediaVideoContainer}>
-              <Video
-                source={{ uri: getValidMediaUrl(post.media[0].url) }}
-                // ✅ THUỘC TÍNH QUAN TRỌNG: Tự động điều chỉnh tỷ lệ theo video gốc
-                resizeMode={ResizeMode.CONTAIN} // Hoặc dùng ResizeMode.CONTAIN nếu muốn hiện viền đen
-                
-                // ✅ BẬT BỘ ĐIỀU KHIỂN CHUẨN (PLAY, PAUSE, TUA, MUTE,...)
-                useNativeControls={true} // Chỉ cần một dòng này để có tất cả!
-                
-                // ✅ CẤU HÌNH TRẠNG THÁI KHỞI ĐẦU (Tùy chọn)
-                shouldPlay={false} // Không tự chạy (đã tắt theo yêu cầu trước)
-                
-                isMuted={isMuted}
-                
-                // ✅ Tùy chọn: Thêm chiều cao tối đa để feed gọn gàng
+              <VideoView
+                player={useVideoPlayer(getValidMediaUrl(post.media[0].url), player => {
+                  player.loop = false;
+                  player.muted = isMuted;
+                })}
                 style={styles.mediaVideo}
+                allowsFullscreen
+                allowsPictureInPicture
               />
               <Pressable 
                 style={styles.customMuteBtn} 
-                onPress={() => setIsMuted(!isMuted)} // Bấm vào thì đảo ngược trạng thái
+                onPress={() => setIsMuted(!isMuted)}
               >
                 {isMuted ? (
                   <VolumeX color="#fff" size={20} />

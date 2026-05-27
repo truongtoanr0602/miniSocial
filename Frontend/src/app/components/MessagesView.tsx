@@ -9,11 +9,15 @@ import {
   Paperclip,
   Search,
   Send,
-  Smile,
 } from "lucide-react";
 import { toast } from "sonner";
 import { copyText } from "../../utils/share";
-import { useConversations, useMessages } from "../../hooks/useConversations";
+import {
+  useConversations,
+  useMessages,
+  type IConversation,
+  type IMessage,
+} from "../../hooks/useConversations";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useLangText } from "../../hooks/useLangText";
 
@@ -21,8 +25,11 @@ interface MessagesViewProps {
   initialConversationId?: string | null;
 }
 
-function timeAgo(dateStr: string, text: (vi: string, en: string) => string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+function timeAgo(dateStr: string | null | undefined, text: (vi: string, en: string) => string): string {
+  if (!dateStr) return "";
+  const timestamp = new Date(dateStr).getTime();
+  if (Number.isNaN(timestamp)) return "";
+  const diff = Date.now() - timestamp;
   const minutes = Math.floor(diff / 60000);
   if (minutes < 1) return text("Vừa xong", "Just now");
   if (minutes < 60) return text(`${minutes} phút`, `${minutes} min`);
@@ -30,10 +37,61 @@ function timeAgo(dateStr: string, text: (vi: string, en: string) => string): str
   if (hours < 24) return text(`${hours} giờ`, `${hours} hr`);
   const days = Math.floor(hours / 24);
   if (days < 7) return text(`${days} ngày`, `${days} d`);
-  return new Date(dateStr).toLocaleDateString(text("vi-VN", "en-US"));
+  return new Date(timestamp).toLocaleDateString(text("vi-VN", "en-US"));
 }
 
-const QUICK_EMOJIS = ["😀", "😂", "😍", "👍", "🙏", "🔥", "🎉", "❤️"];
+type SenderRef = string | { _id?: string; id?: string } | null | undefined;
+type LooseMessage = IMessage & {
+  sender?: SenderRef;
+  author?: SenderRef;
+  user?: SenderRef;
+  userId?: SenderRef;
+  media_url?: string;
+  created_at?: string;
+};
+
+function getSenderId(value: SenderRef): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  return value._id || ("id" in value ? value.id || null : null);
+}
+
+function getMessageSenderId(message: IMessage): string | null {
+  const loose = message as LooseMessage;
+  return getSenderId(
+    loose.senderId ?? loose.sender ?? loose.userId ?? loose.user ?? loose.author,
+  );
+}
+
+function getMessageType(message: IMessage): "text" | "image" | "file" {
+  return message.messageType === "image" || message.messageType === "file"
+    ? message.messageType
+    : "text";
+}
+
+function getMessageMediaUrl(message: IMessage): string {
+  const loose = message as LooseMessage;
+  return loose.mediaUrl || loose.media_url || "";
+}
+
+function getMessageCreatedAt(message: IMessage): string {
+  const loose = message as LooseMessage;
+  return loose.createdAt || loose.created_at || "";
+}
+
+function getConversationPreview(
+  lastMessage: IConversation["lastMessage"],
+  text: (vi: string, en: string) => string,
+): string {
+  if (!lastMessage) {
+    return text("Báº¯t Ä‘áº§u cuá»™c trÃ² chuyá»‡n...", "Start a conversation...");
+  }
+  const content = lastMessage.content?.trim();
+  if (content) return content;
+  if (lastMessage.messageType === "image") return text("Ảnh", "Image");
+  if (lastMessage.messageType === "file") return text("Tệp đính kèm", "Attachment");
+  return text("Tin nhắn", "Message");
+}
 
 export function MessagesView({ initialConversationId = null }: MessagesViewProps) {
   const currentUser = useCurrentUser();
@@ -49,7 +107,6 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
   );
   const [messageText, setMessageText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showChatOptions, setShowChatOptions] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -82,7 +139,6 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
       void markAsRead();
     }
     setShowChatOptions(false);
-    setShowEmojiPicker(false);
   }, [selectedConversationId, markAsRead, markConversationRead]);
 
   useEffect(() => {
@@ -130,11 +186,6 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
     },
     [refetch, sendAttachment, text],
   );
-
-  const handleSelectEmoji = useCallback((emoji: string) => {
-    setMessageText((value) => `${value}${emoji}`);
-    setShowEmojiPicker(false);
-  }, []);
 
   const handleInputChange = (value: string) => {
     setMessageText(value);
@@ -192,7 +243,12 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                   partner.avatar_url ||
                   partner.avatar ||
                   `https://ui-avatars.com/api/?name=${encodeURIComponent(partner.display_name || partner.username)}&background=7c3aed&color=fff`;
-                const lastMsg = conv.lastMessage;
+                const lastMsg = conv.lastMessage
+                  ? {
+                      ...conv.lastMessage,
+                      content: getConversationPreview(conv.lastMessage, text),
+                    }
+                  : null;
                 const unread = conv.unreadCount || 0;
 
                 return (
@@ -307,12 +363,19 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                     <p>{text("Hãy gửi lời chào đầu tiên.", "Send the first hello.")}</p>
                   </div>
                 ) : (
-                  messages.map((message) => {
-                    const senderId = typeof message.senderId === "string" ? message.senderId : message.senderId._id;
-                    const isOwn = senderId === currentUser?._id;
+                  messages.map((message, index) => {
+                    const senderId = getMessageSenderId(message);
+                    const isOwn = Boolean(senderId && senderId === currentUser?._id);
+                    const messageType = getMessageType(message);
+                    const mediaUrl = getMessageMediaUrl(message);
+                    const createdAt = getMessageCreatedAt(message);
+                    const content = message.content || "";
 
                     return (
-                      <div key={message._id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
+                      <div
+                        key={message._id || `${message.conversationId}-${createdAt || index}`}
+                        className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
+                      >
                         <div
                           className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
                             isOwn
@@ -320,18 +383,18 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                               : "bg-gray-100 text-gray-900 rounded-bl-sm"
                           }`}
                         >
-                          {message.messageType === "image" && message.mediaUrl ? (
-                            <a href={message.mediaUrl} target="_blank" rel="noreferrer" className="block">
+                          {messageType === "image" && mediaUrl ? (
+                            <a href={mediaUrl} target="_blank" rel="noreferrer" className="block">
                               <img
-                                src={message.mediaUrl}
+                                src={mediaUrl}
                                 alt={message.content || text("Ảnh đã gửi", "Sent image")}
                                 className="mb-2 max-h-72 rounded-xl object-cover"
                               />
                             </a>
                           ) : null}
-                          {message.messageType === "file" && message.mediaUrl ? (
+                          {messageType === "file" && mediaUrl ? (
                             <a
-                              href={message.mediaUrl}
+                              href={mediaUrl}
                               target="_blank"
                               rel="noreferrer"
                               className={`mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${
@@ -339,15 +402,17 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                               }`}
                             >
                               <Paperclip className="h-4 w-4" />
-                              <span className="truncate">{message.content || text("Tệp đính kèm", "Attachment")}</span>
+                              <span className="truncate">{content || text("Tệp đính kèm", "Attachment")}</span>
                             </a>
                           ) : null}
-                          {message.content && message.messageType !== "file" ? (
-                            <p className="text-sm">{message.content}</p>
+                          {content && messageType !== "file" ? (
+                            <p className="text-sm">{content}</p>
                           ) : null}
-                          <p className={`text-xs mt-1 ${isOwn ? "text-purple-100" : "text-gray-500"}`}>
-                            {timeAgo(message.createdAt, text)}
-                          </p>
+                          {createdAt ? (
+                            <p className={`text-xs mt-1 ${isOwn ? "text-purple-100" : "text-gray-500"}`}>
+                              {timeAgo(createdAt, text)}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -398,30 +463,9 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                         }
                       }}
                       placeholder={text("Nhập tin nhắn...", "Type a message...")}
-                      className="w-full px-4 py-2 pr-10 bg-gray-100 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm max-h-32"
+                      className="w-full px-4 py-2 bg-gray-100 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm max-h-32"
                       rows={1}
                     />
-                    {showEmojiPicker ? (
-                      <div className="absolute bottom-11 right-0 z-20 grid grid-cols-4 gap-1 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
-                        {QUICK_EMOJIS.map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            onClick={() => handleSelectEmoji(emoji)}
-                            className="h-9 w-9 rounded-lg text-lg hover:bg-gray-100"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                    <button
-                      onClick={() => setShowEmojiPicker((value) => !value)}
-                      title="Emoji"
-                      className="absolute right-3 bottom-2 hover:scale-110 transition-transform"
-                    >
-                      <Smile className="w-5 h-5 text-gray-400" />
-                    </button>
                   </div>
                   <button
                     onClick={() => void handleSendMessage()}

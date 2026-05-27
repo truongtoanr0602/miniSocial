@@ -99,7 +99,7 @@ export function registerChatHandlers(socket: AuthenticatedSocket): void {
         await Message.updateMany(
           {
             conversationId: data.conversationId,
-            receiver: new mongoose.Types.ObjectId(userId),
+            receiverId: new mongoose.Types.ObjectId(userId),
             readAt: null,
           },
           { $set: { readAt: now } },

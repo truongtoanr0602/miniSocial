@@ -1,5 +1,4 @@
 import * as ImagePicker from "expo-image-picker";
-import { io, Socket } from "socket.io-client";
 import { BASE_URL } from "../api/config";
 
 
@@ -14,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Linking,
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import {
@@ -21,6 +21,7 @@ import {
   Send,
   ArrowLeft,
   Image as ImageIcon,
+  Paperclip,
 } from "lucide-react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -28,6 +29,7 @@ import { api } from "../api/client";
 import { ENDPOINTS } from "../api/endpoints";
 import { useAuth } from "../store/AuthContext";
 import { useLanguage } from "../store/LanguageContext";
+import { useSocketContext } from "../store/SocketContext";
 import { ui, palette } from "../theme";
 import { ScreenGradient } from "../components/common/ScreenGradient";
 
@@ -37,6 +39,7 @@ const FlashListAny = FlashList as any;
 export default function MessagesScreen({ route }: any) {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { socket } = useSocketContext();
   const [conversations, setConversations] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -74,36 +77,6 @@ const getValidMediaUrl = (url?: string) => {
   return formattedUrl;
 };
 
-const socketRef = useRef<Socket | null>(null);
-
-
-useEffect(() => {
-  // 1. Kết nối với máy chủ Socket
-  socketRef.current = io(BASE_URL);
-
-  // 2. Tham gia vào phòng chat hiện tại (Tùy Backend cấu hình)
-  if (selectedConvId) {
-    socketRef.current.emit("join_room", selectedConvId);
-  }
-
-  // 3. Lắng nghe Backend "bắn" tin nhắn mới về
-  socketRef.current.on("receive_message", (newMsg) => {
-    // Nếu tin nhắn mới thuộc về phòng chat đang mở thì nhét nó vào mảng hiển thị
-    if (newMsg.conversationId === selectedConvId || newMsg.conversation === selectedConvId) {
-      setMessages((prev) => {
-        // Kiểm tra trùng lặp để tránh hiện 2 tin giống nhau
-        const isExist = prev.some((msg) => msg._id === newMsg._id);
-        return isExist ? prev : [...prev, newMsg];
-      });
-    }
-  });
-
-  // 4. Dọn dẹp khi thoát phòng chat
-  return () => {
-    socketRef.current?.disconnect();
-  };
-}, [selectedConvId]);
-
   const loadConversations = useCallback(async () => {
     try {
       setRefreshing(true);
@@ -140,36 +113,23 @@ useEffect(() => {
       console.error(e);
     }
   }, []);
+  // Polling fallback — chỉ giữ 1 interval (tránh duplicate request)
   useEffect(() => {
     let intervalId: any;
 
-    // Nếu đang mở một phòng chat cụ thể
     if (selectedConvId) {
-      // Thiết lập hẹn giờ: Cứ đúng 2.5 giây là âm thầm gọi hàm loadMessages 1 lần
       intervalId = setInterval(() => {
         loadMessages(selectedConvId);
-      }, 2500); // 2500 mili-giây = 2.5 giây
+      }, 3000);
     }
 
-    // Dọn dẹp bộ đếm giờ khi bạn bấm nút Back thoát ra ngoài (Cực kỳ quan trọng để không lag máy)
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
       }
     };
   }, [selectedConvId, loadMessages]);
-  // ⚡️ THÊM ĐOẠN NÀY VÀO ĐỂ LÀM MỚI TIN NHẮN LIÊN TỤC
-  useEffect(() => {
-    if (!selectedConvId) return;
 
-    // Cứ 3 giây (3000ms) sẽ âm thầm gọi API lấy tin nhắn mới 1 lần
-    const interval = setInterval(() => {
-      loadMessages(selectedConvId);
-    }, 3000);
-
-    // Bắt buộc phải có dòng này để xóa bộ đếm khi thoát phòng chat (tránh tràn RAM)
-    return () => clearInterval(interval);
-  }, [selectedConvId, loadMessages]);
 
   const markConversationRead = useCallback(async (convId: string) => {
     setConversations((prev) =>
@@ -183,6 +143,40 @@ useEffect(() => {
       console.error(e);
     }
   }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = (payload: any) => {
+      const incoming = payload?.message || payload;
+      const conversationId =
+        payload?.conversationId || incoming?.conversationId || incoming?.conversation;
+
+      if (!conversationId || !incoming?._id) return;
+
+      if (conversationId === selectedConvId) {
+        setMessages((prev) =>
+          prev.some((msg) => msg._id === incoming._id) ? prev : [...prev, incoming],
+        );
+        void markConversationRead(conversationId).then(loadConversations);
+        return;
+      }
+
+      void loadConversations();
+    };
+
+    if (selectedConvId) {
+      socket.emit("joinConversation", { conversationId: selectedConvId });
+    }
+    socket.on("newMessage", handleNewMessage);
+
+    return () => {
+      socket.off("newMessage", handleNewMessage);
+      if (selectedConvId) {
+        socket.emit("leaveConversation", { conversationId: selectedConvId });
+      }
+    };
+  }, [loadConversations, markConversationRead, selectedConvId, socket]);
 
   useEffect(() => {
     if (selectedConvId) {
@@ -444,9 +438,13 @@ const isOwn = Boolean(
   currentUserId && 
   String(senderId) === String(currentUserId)
 );
+const messageType = msg.messageType || "text";
+const mediaUrl = msg.mediaUrl ? getValidMediaUrl(msg.mediaUrl) : "";
+const content = msg.content || "";
+const createdAt = msg.createdAt || msg.created_at;
                   return (
                     <View
-                      key={idx}
+                      key={msg._id || `${selectedConvId}-${createdAt || idx}`}
                       style={{
                         flexDirection: "row",
                         justifyContent: isOwn ? "flex-end" : "flex-start",
@@ -469,27 +467,52 @@ const isOwn = Boolean(
                           maxWidth: "80%",
                         }}
                       >
-                        {msg.messageType === "image" && msg.mediaUrl ? (
+                        {messageType === "image" && mediaUrl ? (
                           <Image
                             // ✅ CODE MỚI: Bọc qua hàm getValidMediaUrl
-                            source={{ uri: getValidMediaUrl(msg.mediaUrl) }}
+                            source={{ uri: mediaUrl }}
                             style={{
                               width: 220,
                               height: 180,
                               borderRadius: 12,
-                              marginBottom: msg.content ? 8 : 0,
+                              marginBottom: content ? 8 : 0,
                             }}
                             contentFit="cover"
                           />
                         ) : null}
-                        {msg.content ? (
+                        {messageType === "file" && mediaUrl ? (
+                          <Pressable
+                            onPress={() => void Linking.openURL(mediaUrl)}
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 8,
+                              maxWidth: 220,
+                              paddingVertical: 4,
+                            }}
+                          >
+                            <Paperclip color={isOwn ? "#fff" : palette.ink} size={16} />
+                            <Text
+                              numberOfLines={1}
+                              style={{
+                                color: isOwn ? "#fff" : palette.ink,
+                                flexShrink: 1,
+                                fontSize: 15,
+                                fontWeight: "600",
+                              }}
+                            >
+                              {content || t("Tệp đính kèm", "Attachment")}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                        {content && messageType !== "file" ? (
                           <Text
                             style={{
                               color: isOwn ? "#fff" : palette.ink,
                               fontSize: 15,
                             }}
                           >
-                            {msg.content}
+                            {content}
                           </Text>
                         ) : null}
                         <Text
@@ -502,10 +525,12 @@ const isOwn = Boolean(
                             alignSelf: "flex-end",
                           }}
                         >
-                          {new Date(msg.createdAt).toLocaleTimeString(t("vi-VN", "en-US"), {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {createdAt
+                            ? new Date(createdAt).toLocaleTimeString(t("vi-VN", "en-US"), {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : ""}
                         </Text>
                       </LinearGradient>
                     </View>

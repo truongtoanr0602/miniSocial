@@ -9,15 +9,13 @@ export interface INotification {
     _id: string;
     username: string;
     display_name: string;
-    avatar?: string;
+    avatar_url?: string;
   } | string;
-  type: "like" | "comment" | "follow" | "mention" | "share";
-  reference_id?: string;
-  reference_model?: "Post" | "Comment";
-  content?: string;
+  type: "like" | "comment" | "follow" | "mention" | "system";
+  target_id?: string | null;
+  message?: string;
   is_read: boolean;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
 }
 
 /**

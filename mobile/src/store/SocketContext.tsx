@@ -31,24 +31,37 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const socket = io(BASE_URL, {
-      transports: ["websocket"],
-      autoConnect: true,
-    });
+    // Lấy token từ SecureStore để truyền vào socket auth
+    const connectWithToken = async () => {
+      try {
+        const SecureStore = await import("expo-secure-store");
+        const storedToken = await SecureStore.getItemAsync("token");
+        if (!storedToken) return;
 
-    socket.on("connect", () => {
-      socket.emit("register-user", (user as any)._id);
-      setIsConnected(true);
-    });
+        const socket = io(BASE_URL, {
+          transports: ["websocket"],
+          autoConnect: true,
+          auth: { token: storedToken },
+        });
 
-    socket.on("disconnect", () => {
-      setIsConnected(false);
-    });
+        socket.on("connect", () => {
+          setIsConnected(true);
+        });
 
-    socketRef.current = socket;
+        socket.on("disconnect", () => {
+          setIsConnected(false);
+        });
+
+        socketRef.current = socket;
+      } catch (e) {
+        console.error("[SocketContext] Connect error:", e);
+      }
+    };
+
+    connectWithToken();
 
     return () => {
-      socket.disconnect();
+      socketRef.current?.disconnect();
       socketRef.current = null;
       setIsConnected(false);
     };

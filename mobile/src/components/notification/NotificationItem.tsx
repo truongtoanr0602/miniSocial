@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Heart, MessageCircle, UserPlus, AtSign, Share2, Clock } from "lucide-react-native";
+import { Heart, MessageCircle, UserPlus, AtSign, Clock } from "lucide-react-native";
 import { Avatar } from "../common/Avatar";
 import { palette } from "../../theme";
 import type { INotification, IUser } from "../../types/models";
@@ -15,7 +15,6 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   comment: <MessageCircle color="#3b82f6" size={14} />,
   follow: <UserPlus color="#a855f7" size={14} />,
   mention: <AtSign color="#22c55e" size={14} />,
-  share: <Share2 color="#f97316" size={14} />,
 };
 
 const TEXT_MAP: Record<string, string> = {
@@ -23,7 +22,6 @@ const TEXT_MAP: Record<string, string> = {
   comment: "đã bình luận bài viết của bạn",
   follow: "đã bắt đầu theo dõi bạn",
   mention: "đã nhắc đến bạn",
-  share: "đã chia sẻ bài viết của bạn",
 };
 
 function NotificationItemRaw({ notification, onPress }: Props) {

@@ -18,7 +18,7 @@ export async function flushPendingDeliveries(userId: string): Promise<void> {
 
     const result = await Message.updateMany(
       {
-        receiver: new mongoose.Types.ObjectId(userId),
+        receiverId: new mongoose.Types.ObjectId(userId),
         deliveredAt: null,
       },
       { $set: { deliveredAt: new Date() } },
@@ -28,17 +28,17 @@ export async function flushPendingDeliveries(userId: string): Promise<void> {
       // Lấy danh sách tin vừa deliver để thông báo sender
       const deliveredMessages = await Message.find(
         {
-          receiver: new mongoose.Types.ObjectId(userId),
+          receiverId: new mongoose.Types.ObjectId(userId),
           deliveredAt: { $exists: true, $ne: null },
           readAt: null,
         },
-        { conversationId: 1, sender: 1, _id: 1 },
+        { conversationId: 1, senderId: 1, _id: 1 },
       ).limit(50);
 
       // Group theo sender để giảm số emit
       const bySender: Record<string, string[]> = {};
       for (const msg of deliveredMessages) {
-        const senderId = msg.sender.toString();
+        const senderId = msg.senderId.toString();
         if (!bySender[senderId]) bySender[senderId] = [];
         bySender[senderId].push(msg._id.toString());
       }

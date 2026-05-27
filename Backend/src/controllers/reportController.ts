@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import mongoose from "mongoose";
 import Report from "../models/Report.js";
+import User from "../models/userModel.js";
 import { successResponse, errorResponse } from "../utils/response.js";
 
 interface AuthRequest extends Request {
@@ -58,7 +59,7 @@ export const createReport = async (
 };
 
 // ──────────────────────────────────────────
-// 2. Lấy danh sách report (admin)
+// 2. Lấy danh sách report (admin only)
 // GET /api/report?page=1&limit=20
 // ──────────────────────────────────────────
 export const getReports = async (
@@ -66,6 +67,15 @@ export const getReports = async (
   res: Response,
 ): Promise<void> => {
   try {
+    const userId = req.userId as string;
+
+    // Kiểm tra quyền admin
+    const currentUser = await User.findById(userId).select("role").lean();
+    if (!currentUser || currentUser.role !== "admin") {
+      errorResponse(req, res, "report.FORBIDDEN", 403, "FORBIDDEN");
+      return;
+    }
+
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(50, parseInt(req.query.limit as string) || 20);
 

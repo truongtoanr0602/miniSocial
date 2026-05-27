@@ -68,13 +68,11 @@ export interface INotification {
   _id: string;
   recipient_id: string;
   sender_id: IUser | string;
-  type: "like" | "comment" | "follow" | "mention" | "share";
-  reference_id?: string;
-  reference_model?: "Post" | "Comment";
-  content?: string;
+  type: "like" | "comment" | "follow" | "mention" | "system";
+  target_id?: string | null;
+  message?: string;
   is_read: boolean;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
 }
 
 // ─── Conversation ───
@@ -95,11 +93,11 @@ export interface IConversation {
 export interface IMessage {
   _id: string;
   conversationId: string;
-  sender: string | IUser;
-  receiver: string;
+  senderId: string | IUser;
+  receiverId: string;
   content: string;
-  media_url?: string;
-  media_type?: string;
+  messageType?: string;
+  mediaUrl?: string;
   readAt?: string;
   deliveredAt?: string;
   createdAt: string;

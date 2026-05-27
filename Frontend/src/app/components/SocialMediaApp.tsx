@@ -29,6 +29,7 @@ export function SocialMediaApp() {
     string | null
   >(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [focusedPostId, setFocusedPostId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!getValidToken()) {
@@ -39,6 +40,7 @@ export function SocialMediaApp() {
   const handleViewChange = (view: ViewType) => {
     setIsCreatePostOpen(false);
     if (view !== "profile") setSelectedProfileId(null);
+    setFocusedPostId(null);
     setActiveView(view);
   };
 
@@ -46,6 +48,13 @@ export function SocialMediaApp() {
     setIsCreatePostOpen(false);
     setSelectedProfileId(userId || null);
     setActiveView("profile");
+  };
+
+  const handleOpenPost = (postId: string) => {
+    setIsCreatePostOpen(false);
+    setSelectedProfileId(null);
+    setFocusedPostId(postId);
+    setActiveView("feed");
   };
 
   const renderMainContent = () => {
@@ -56,6 +65,7 @@ export function SocialMediaApp() {
             refreshKey={postRefreshKey}
             onCreatePost={() => setIsCreatePostOpen(true)}
             onOpenProfile={handleOpenProfile}
+            focusedPostId={focusedPostId}
           />
         );
       case "profile":
@@ -67,7 +77,12 @@ export function SocialMediaApp() {
           />
         );
       case "notifications":
-        return <NotificationsView />;
+        return (
+          <NotificationsView
+            onOpenPost={handleOpenPost}
+            onOpenProfile={handleOpenProfile}
+          />
+        );
       case "messages":
         return <MessagesView initialConversationId={selectedConversationId} />;
       case "search":
@@ -89,6 +104,7 @@ export function SocialMediaApp() {
             refreshKey={postRefreshKey}
             onCreatePost={() => setIsCreatePostOpen(true)}
             onOpenProfile={handleOpenProfile}
+            focusedPostId={focusedPostId}
           />
         );
     }

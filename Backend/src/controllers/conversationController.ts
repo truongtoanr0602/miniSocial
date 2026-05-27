@@ -29,7 +29,7 @@ export const getConversations = async (
       .populate({
         path: "lastMessage",
         select:
-          "_id content messageType mediaUrl sender createdAt readAt deliveredAt",
+          "_id content messageType mediaUrl senderId createdAt readAt deliveredAt",
       });
 
     // Ẩn bản thân khỏi danh sách participants để FE dễ dùng
@@ -316,6 +316,9 @@ export const sendMessage = async (
       return;
     }
 
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    const deliveredAt = receiverSocketId ? new Date() : null;
+
     // Tạo tin nhắn mới
     const messageData: Record<string, unknown> = {
       conversationId,
@@ -323,7 +326,7 @@ export const sendMessage = async (
       receiverId: new mongoose.Types.ObjectId(receiverId),
       messageType,
       content: content?.trim() ?? "",
-      deliveredAt: null,
+      deliveredAt,
       readAt: null,
     };
     if (mediaUrl) {
@@ -346,16 +349,10 @@ export const sendMessage = async (
     );
 
     // Phát socket realtime cho receiver nếu đang online
-    const receiverSocketId = getReceiverSocketId(receiverId);
     if (receiverSocketId) {
       getIo().to(receiverSocketId).emit("newMessage", {
         conversationId,
         message: populated,
-      });
-
-      // Đánh dấu delivered ngay khi biết receiver đang online
-      await Message.findByIdAndUpdate(newMessage._id, {
-        deliveredAt: new Date(),
       });
     }
 

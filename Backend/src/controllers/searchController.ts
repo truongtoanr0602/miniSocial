@@ -15,10 +15,9 @@ export async function search(req: Request, res: Response) {
       $or: [
         { username: { $regex: q, $options: "i" } },
         { display_name: { $regex: q, $options: "i" } },
-        { email: { $regex: q, $options: "i" } },
       ],
     })
-      .select("username display_name email avatar_url bio followers following")
+      .select("username display_name avatar_url bio followers following")
       .limit(20);
 
     const hashtagQuery = q.startsWith("#")
@@ -30,6 +29,7 @@ export async function search(req: Request, res: Response) {
         { content: { $regex: q, $options: "i" } },
         { hashtags: hashtagQuery },
       ],
+      visibility: "public",
     })
       .populate("author_id", "username display_name avatar_url")
       .sort({ created_at: -1 })

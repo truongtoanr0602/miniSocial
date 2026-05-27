@@ -27,6 +27,7 @@ interface PostCardProps {
   onPostUpdated: (post: IPost) => void;
   onPostDeleted: (postId: string) => void;
   onOpenProfile?: (userId: string) => void;
+  isHighlighted?: boolean;
 }
 
 function timeAgo(dateStr: string, text: (vi: string, en: string) => string): string {
@@ -64,6 +65,7 @@ export const PostCard = memo(function PostCard({
   onPostUpdated,
   onPostDeleted,
   onOpenProfile,
+  isHighlighted = false,
 }: PostCardProps) {
   const currentUser = useCurrentUser();
   const text = useLangText();
@@ -193,7 +195,12 @@ export const PostCard = memo(function PostCard({
     `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserName)}&background=7c3aed&color=fff`;
 
   return (
-    <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border border-gray-200/50 overflow-hidden hover:shadow-xl transition-all duration-300">
+    <div
+      id={`post-${post._id}`}
+      className={`bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border overflow-hidden hover:shadow-xl transition-all duration-300 ${
+        isHighlighted ? "border-purple-400 ring-4 ring-purple-200" : "border-gray-200/50"
+      }`}
+    >
       <div className="p-4 flex items-center justify-between">
         <button
           type="button"

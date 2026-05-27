@@ -143,7 +143,7 @@ export const sendPhoneOtp = async (
 
     console.log(`[MOCK SMS] Gửi tới SĐT: ${phone_number}`);
     console.log(
-      `[MOCK SMS] Nội dung: Mã xác nhận Mạng Xã Hội của bạn là: ${otp}. Mã có hiệu lực trong 3 phút.`,
+      `[MOCK SMS] Nội dung: Mã xác nhận Mạng Xã Hội của bạn là: ${otp}. Mã có hiệu lực trong 5 phút.`,
     );
 
     successResponse(req, res, null, "auth.OTP_SENT", 200, "OTP_SENT");

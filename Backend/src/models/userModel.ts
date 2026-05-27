@@ -18,6 +18,7 @@ export interface IUser extends Document {
         two_factor_enable: boolean;
     };
     status: 'active' | 'locked' | 'pending';
+    role: 'user' | 'admin';
     created_at: Date;
     updated_at: Date;
 }
@@ -39,7 +40,8 @@ const userSchema: Schema = new Schema({
         privacy: { type: String, enum: ['public', 'friends', 'private'], default: 'public' },
         two_factor_enable: { type: Boolean, default: false }
     },
-    status: { type: String, enum: ['active', 'locked', 'pending'], default: 'active' }
+    status: { type: String, enum: ['active', 'locked', 'pending'], default: 'active' },
+    role: { type: String, enum: ['user', 'admin'], default: 'user' }
 }, {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
     collection: 'users'

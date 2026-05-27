@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { createPost, deletePost, getNewsfeed, sharePost, updatePost } from '../controllers/postController.js';
+import { createPost, deletePost, getNewsfeed, getPostById, sharePost, updatePost } from '../controllers/postController.js';
 import { reactToPost } from '../controllers/reactionController.js';
 import { getPersonalFeed } from '../controllers/feedController.js';
 import { createComment, getComments, getReplies, deleteComment } from '../controllers/commentController.js';
@@ -15,6 +15,7 @@ router.get('/feed', verifyToken, getPersonalFeed);
 
 // GET /api/post/explore — Global feed (tất cả bài public)
 router.get('/explore', verifyToken, getNewsfeed);
+router.get('/:postId', verifyToken, getPostById);
 
 // POST /api/post/createPost — Tạo bài viết mới
 router.post('/createPost', verifyToken, upload.array('images', 5), createPost);

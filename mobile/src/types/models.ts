@@ -84,8 +84,8 @@ export interface IConversation {
 export interface IMessage {
   _id: string;
   conversationId: string;
-  sender: IUser | string;
-  receiver: string;
+  senderId: IUser | string;
+  receiverId: string;
   content: string;
   messageType: "text" | "image" | "file";
   mediaUrl?: string;
