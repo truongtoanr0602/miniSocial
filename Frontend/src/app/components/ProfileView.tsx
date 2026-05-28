@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import apiClient from "../../services/api";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useLangText } from "../../hooks/useLangText";
+import { resolveMediaUrl } from "../../utils/mediaUrl";
 import { copyProfileLink, sharePostLink } from "../../utils/share";
 import { PostCard } from "./PostCard";
 import type { IMyProfile, IPost, IUser } from "../../types/models";
@@ -36,7 +37,7 @@ type FollowListKind = "followers" | "following";
 
 function avatarFor(user: Pick<IUser, "display_name" | "username" | "avatar_url">) {
   return (
-    user.avatar_url ||
+    resolveMediaUrl(user.avatar_url) ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(user.display_name || user.username)}&background=7c3aed&color=fff`
   );
 }
@@ -291,7 +292,7 @@ export function ProfileView({ userId, onEditProfile, onOpenProfile }: ProfileVie
       (profile?.posts || []).flatMap((post) =>
         (post.media || [])
           .filter((media) => media.type === "image")
-          .map((media) => media.url),
+          .map((media) => resolveMediaUrl(media.url)),
       ),
     [profile?.posts],
   );

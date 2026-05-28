@@ -13,6 +13,7 @@ import {
   type INotification,
 } from "../../hooks/useNotifications";
 import { useLangText } from "../../hooks/useLangText";
+import { resolveMediaUrl } from "../../utils/mediaUrl";
 
 interface NotificationsViewProps {
   onOpenPost?: (postId: string) => void;
@@ -194,7 +195,7 @@ export function NotificationsView({
                 sender?.username ||
                 text("Ai đó", "Someone");
               const senderAvatar =
-                sender?.avatar_url ||
+                resolveMediaUrl(sender?.avatar_url) ||
                 `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=7c3aed&color=fff`;
 
               return (

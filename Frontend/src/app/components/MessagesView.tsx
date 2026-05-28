@@ -20,12 +20,16 @@ import {
 } from "../../hooks/useConversations";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useLangText } from "../../hooks/useLangText";
+import { resolveMediaUrl } from "../../utils/mediaUrl";
 
 interface MessagesViewProps {
   initialConversationId?: string | null;
 }
 
-function timeAgo(dateStr: string | null | undefined, text: (vi: string, en: string) => string): string {
+function timeAgo(
+  dateStr: string | null | undefined,
+  text: (vi: string, en: string) => string,
+): string {
   if (!dateStr) return "";
   const timestamp = new Date(dateStr).getTime();
   if (Number.isNaN(timestamp)) return "";
@@ -59,7 +63,11 @@ function getSenderId(value: SenderRef): string | null {
 function getMessageSenderId(message: IMessage): string | null {
   const loose = message as LooseMessage;
   return getSenderId(
-    loose.senderId ?? loose.sender ?? loose.userId ?? loose.user ?? loose.author,
+    loose.senderId ??
+      loose.sender ??
+      loose.userId ??
+      loose.user ??
+      loose.author,
   );
 }
 
@@ -71,7 +79,7 @@ function getMessageType(message: IMessage): "text" | "image" | "file" {
 
 function getMessageMediaUrl(message: IMessage): string {
   const loose = message as LooseMessage;
-  return loose.mediaUrl || loose.media_url || "";
+  return resolveMediaUrl(loose.mediaUrl || loose.media_url || "");
 }
 
 function getMessageCreatedAt(message: IMessage): string {
@@ -84,16 +92,19 @@ function getConversationPreview(
   text: (vi: string, en: string) => string,
 ): string {
   if (!lastMessage) {
-    return text("Báº¯t Ä‘áº§u cuá»™c trÃ² chuyá»‡n...", "Start a conversation...");
+    return text("Bắt đầu cuộc trò chuyện mới...", "Start a conversation...");
   }
   const content = lastMessage.content?.trim();
   if (content) return content;
   if (lastMessage.messageType === "image") return text("Ảnh", "Image");
-  if (lastMessage.messageType === "file") return text("Tệp đính kèm", "Attachment");
+  if (lastMessage.messageType === "file")
+    return text("Tệp đính kèm", "Attachment");
   return text("Tin nhắn", "Message");
 }
 
-export function MessagesView({ initialConversationId = null }: MessagesViewProps) {
+export function MessagesView({
+  initialConversationId = null,
+}: MessagesViewProps) {
   const currentUser = useCurrentUser();
   const text = useLangText();
   const {
@@ -102,9 +113,9 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
     markConversationRead,
     refetch,
   } = useConversations();
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
-    initialConversationId,
-  );
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    string | null
+  >(initialConversationId);
   const [messageText, setMessageText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showChatOptions, setShowChatOptions] = useState(false);
@@ -145,7 +156,12 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
     if (!selectedConversationId || messages.length === 0) return;
     markConversationRead(selectedConversationId);
     void markAsRead();
-  }, [messages.length, selectedConversationId, markAsRead, markConversationRead]);
+  }, [
+    messages.length,
+    selectedConversationId,
+    markAsRead,
+    markConversationRead,
+  ]);
 
   const filteredConversations = conversations.filter((conv) => {
     const partner = conv.partner;
@@ -154,7 +170,9 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
     return name.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
-  const selectedConv = conversations.find((conv) => conv._id === selectedConversationId);
+  const selectedConv = conversations.find(
+    (conv) => conv._id === selectedConversationId,
+  );
   const selectedPartner = selectedConv?.partner;
 
   const handleSendMessage = useCallback(async () => {
@@ -169,7 +187,10 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
   }, [messageText, refetch, sendMessage, text]);
 
   const handleAttachmentChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>, messageType: "image" | "file") => {
+    async (
+      event: React.ChangeEvent<HTMLInputElement>,
+      messageType: "image" | "file",
+    ) => {
       const file = event.target.files?.[0];
       event.target.value = "";
       if (!file) return;
@@ -179,7 +200,10 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
         await sendAttachment(file, messageType);
         void refetch();
       } catch (err: any) {
-        toast.error(err.response?.data?.message || text("Không thể gửi tệp đính kèm.", "Could not send attachment."));
+        toast.error(
+          err.response?.data?.message ||
+            text("Không thể gửi tệp đính kèm.", "Could not send attachment."),
+        );
       } finally {
         setIsUploading(false);
       }
@@ -193,8 +217,8 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
   };
 
   const partnerAvatar = selectedPartner
-    ? selectedPartner.avatar_url ||
-      selectedPartner.avatar ||
+    ? resolveMediaUrl(selectedPartner.avatar_url) ||
+      resolveMediaUrl(selectedPartner.avatar) ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPartner.display_name || selectedPartner.username)}&background=7c3aed&color=fff`
     : "";
 
@@ -226,13 +250,20 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
             {convLoading ? (
               <div className="flex items-center justify-center p-8">
                 <Loader2 className="w-6 h-6 text-purple-600 animate-spin" />
-                <span className="ml-2 text-sm text-gray-500">{text("Đang tải...", "Loading...")}</span>
+                <span className="ml-2 text-sm text-gray-500">
+                  {text("Đang tải...", "Loading...")}
+                </span>
               </div>
             ) : filteredConversations.length === 0 ? (
               <div className="p-8 text-center text-gray-400">
-                <p className="font-medium">{text("Chưa có cuộc trò chuyện nào", "No conversations yet")}</p>
+                <p className="font-medium">
+                  {text("Chưa có cuộc trò chuyện nào", "No conversations yet")}
+                </p>
                 <p className="text-sm mt-1">
-                  {text("Tìm người dùng và bấm Nhắn tin để bắt đầu.", "Find a user and choose Message to start.")}
+                  {text(
+                    "Tìm người dùng và bấm Nhắn tin để bắt đầu.",
+                    "Find a user and choose Message to start.",
+                  )}
                 </p>
               </div>
             ) : (
@@ -240,8 +271,8 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                 const partner = conv.partner;
                 if (!partner) return null;
                 const avatar =
-                  partner.avatar_url ||
-                  partner.avatar ||
+                  resolveMediaUrl(partner.avatar_url) ||
+                  resolveMediaUrl(partner.avatar) ||
                   `https://ui-avatars.com/api/?name=${encodeURIComponent(partner.display_name || partner.username)}&background=7c3aed&color=fff`;
                 const lastMsg = conv.lastMessage
                   ? {
@@ -259,7 +290,11 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                       selectedConversationId === conv._id ? "bg-purple-50" : ""
                     }`}
                   >
-                    <img src={avatar} alt={partner.display_name || partner.username} className="w-12 h-12 rounded-full object-cover" />
+                    <img
+                      src={avatar}
+                      alt={partner.display_name || partner.username}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-baseline justify-between mb-1">
                         <h3 className="font-semibold text-gray-900 truncate">
@@ -273,7 +308,11 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-sm text-gray-600 truncate">
-                          {lastMsg?.content || text("Bắt đầu cuộc trò chuyện...", "Start a conversation...")}
+                          {lastMsg?.content ||
+                            text(
+                              "Bắt đầu cuộc trò chuyện...",
+                              "Start a conversation...",
+                            )}
                         </p>
                         {unread > 0 ? (
                           <span className="flex-shrink-0 ml-2 px-2 py-0.5 bg-purple-600 text-white text-xs rounded-full">
@@ -289,7 +328,9 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
           </div>
         </div>
 
-        <div className={`flex-1 flex flex-col ${selectedConversationId ? "flex" : "hidden md:flex"}`}>
+        <div
+          className={`flex-1 flex flex-col ${selectedConversationId ? "flex" : "hidden md:flex"}`}
+        >
           {selectedPartner ? (
             <>
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -301,13 +342,21 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                   >
                     <ArrowLeft className="w-5 h-5 text-gray-600" />
                   </button>
-                  <img src={partnerAvatar} alt={selectedPartner.display_name || selectedPartner.username} className="w-10 h-10 rounded-full object-cover" />
+                  <img
+                    src={partnerAvatar}
+                    alt={
+                      selectedPartner.display_name || selectedPartner.username
+                    }
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
                   <div>
                     <h3 className="font-semibold text-gray-900">
                       {selectedPartner.display_name || selectedPartner.username}
                     </h3>
                     <p className="text-xs text-gray-500">
-                      {isTyping ? text("Đang nhập...", "Typing...") : `@${selectedPartner.username}`}
+                      {isTyping
+                        ? text("Đang nhập...", "Typing...")
+                        : `@${selectedPartner.username}`}
                     </p>
                   </div>
                 </div>
@@ -329,7 +378,12 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                           }
                           void markAsRead();
                           setShowChatOptions(false);
-                          toast.success(text("Đã đánh dấu cuộc trò chuyện là đã đọc.", "Conversation marked as read."));
+                          toast.success(
+                            text(
+                              "Đã đánh dấu cuộc trò chuyện là đã đọc.",
+                              "Conversation marked as read.",
+                            ),
+                          );
                         }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50"
                       >
@@ -339,7 +393,13 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                       <button
                         type="button"
                         onClick={() => {
-                          void copyText(`@${selectedPartner.username}`, text("Đã sao chép tên người dùng.", "Username copied."));
+                          void copyText(
+                            `@${selectedPartner.username}`,
+                            text(
+                              "Đã sao chép tên người dùng.",
+                              "Username copied.",
+                            ),
+                          );
                           setShowChatOptions(false);
                         }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50"
@@ -356,16 +416,25 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                 {msgLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="w-6 h-6 text-purple-600 animate-spin" />
-                    <span className="ml-2 text-gray-500">{text("Đang tải tin nhắn...", "Loading messages...")}</span>
+                    <span className="ml-2 text-gray-500">
+                      {text("Đang tải tin nhắn...", "Loading messages...")}
+                    </span>
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full text-gray-400">
-                    <p>{text("Hãy gửi lời chào đầu tiên.", "Send the first hello.")}</p>
+                    <p>
+                      {text(
+                        "Hãy gửi lời chào đầu tiên.",
+                        "Send the first hello.",
+                      )}
+                    </p>
                   </div>
                 ) : (
                   messages.map((message, index) => {
                     const senderId = getMessageSenderId(message);
-                    const isOwn = Boolean(senderId && senderId === currentUser?._id);
+                    const isOwn = Boolean(
+                      senderId && senderId === currentUser?._id,
+                    );
                     const messageType = getMessageType(message);
                     const mediaUrl = getMessageMediaUrl(message);
                     const createdAt = getMessageCreatedAt(message);
@@ -373,7 +442,10 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
 
                     return (
                       <div
-                        key={message._id || `${message.conversationId}-${createdAt || index}`}
+                        key={
+                          message._id ||
+                          `${message.conversationId}-${createdAt || index}`
+                        }
                         className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
                       >
                         <div
@@ -384,10 +456,18 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                           }`}
                         >
                           {messageType === "image" && mediaUrl ? (
-                            <a href={mediaUrl} target="_blank" rel="noreferrer" className="block">
+                            <a
+                              href={mediaUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block"
+                            >
                               <img
                                 src={mediaUrl}
-                                alt={message.content || text("Ảnh đã gửi", "Sent image")}
+                                alt={
+                                  message.content ||
+                                  text("Ảnh đã gửi", "Sent image")
+                                }
                                 className="mb-2 max-h-72 rounded-xl object-cover"
                               />
                             </a>
@@ -398,18 +478,24 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                               target="_blank"
                               rel="noreferrer"
                               className={`mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${
-                                isOwn ? "bg-white/15 text-white" : "bg-white text-gray-800"
+                                isOwn
+                                  ? "bg-white/15 text-white"
+                                  : "bg-white text-gray-800"
                               }`}
                             >
                               <Paperclip className="h-4 w-4" />
-                              <span className="truncate">{content || text("Tệp đính kèm", "Attachment")}</span>
+                              <span className="truncate">
+                                {content || text("Tệp đính kèm", "Attachment")}
+                              </span>
                             </a>
                           ) : null}
                           {content && messageType !== "file" ? (
                             <p className="text-sm">{content}</p>
                           ) : null}
                           {createdAt ? (
-                            <p className={`text-xs mt-1 ${isOwn ? "text-purple-100" : "text-gray-500"}`}>
+                            <p
+                              className={`text-xs mt-1 ${isOwn ? "text-purple-100" : "text-gray-500"}`}
+                            >
                               {timeAgo(createdAt, text)}
                             </p>
                           ) : null}
@@ -428,13 +514,17 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={(event) => void handleAttachmentChange(event, "image")}
+                    onChange={(event) =>
+                      void handleAttachmentChange(event, "image")
+                    }
                   />
                   <input
                     ref={fileInputRef}
                     type="file"
                     className="hidden"
-                    onChange={(event) => void handleAttachmentChange(event, "file")}
+                    onChange={(event) =>
+                      void handleAttachmentChange(event, "file")
+                    }
                   />
                   <button
                     onClick={() => imageInputRef.current?.click()}
@@ -455,14 +545,19 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                   <div className="flex-1 relative">
                     <textarea
                       value={messageText}
-                      onChange={(event) => handleInputChange(event.target.value)}
+                      onChange={(event) =>
+                        handleInputChange(event.target.value)
+                      }
                       onKeyDown={(event) => {
                         if (event.key === "Enter" && !event.shiftKey) {
                           event.preventDefault();
                           void handleSendMessage();
                         }
                       }}
-                      placeholder={text("Nhập tin nhắn...", "Type a message...")}
+                      placeholder={text(
+                        "Nhập tin nhắn...",
+                        "Type a message...",
+                      )}
                       className="w-full px-4 py-2 bg-gray-100 rounded-full resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm max-h-32"
                       rows={1}
                     />
@@ -484,9 +579,14 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                 <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Send className="w-12 h-12 text-purple-400" />
                 </div>
-                <p className="text-lg font-medium">{text("Chọn một cuộc trò chuyện", "Select a conversation")}</p>
+                <p className="text-lg font-medium">
+                  {text("Chọn một cuộc trò chuyện", "Select a conversation")}
+                </p>
                 <p className="text-sm mt-1">
-                  {text("Hoặc tìm người dùng để bắt đầu nhắn tin.", "Or find a user to start messaging.")}
+                  {text(
+                    "Hoặc tìm người dùng để bắt đầu nhắn tin.",
+                    "Or find a user to start messaging.",
+                  )}
                 </p>
               </div>
             </div>

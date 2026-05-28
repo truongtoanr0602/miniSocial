@@ -8,3 +8,4 @@ backend/uploads/
 *.log
 .Agents/
 scripts/
+sequencediagram/

@@ -35,6 +35,7 @@ export const ENDPOINTS = {
   // Posts
   FEED: "/post/feed",
   EXPLORE: "/post/explore",
+  POST_DETAIL: (postId: string) => `/post/${postId}`,
   CREATE_POST: "/post/createPost",
   UPDATE_POST: (postId: string) => `/post/${postId}`,
   DELETE_POST: (postId: string) => `/post/${postId}`,
@@ -43,8 +44,10 @@ export const ENDPOINTS = {
 
   // Comments
   POST_COMMENTS: (postId: string) => `/post/${postId}/comments`,
-  COMMENT_REPLIES: (postId: string, commentId: string) => `/post/${postId}/comments/${commentId}/replies`,
-  DELETE_COMMENT: (postId: string, commentId: string) => `/post/${postId}/comments/${commentId}`,
+  COMMENT_REPLIES: (postId: string, commentId: string) =>
+    `/post/${postId}/comments/${commentId}/replies`,
+  DELETE_COMMENT: (postId: string, commentId: string) =>
+    `/post/${postId}/comments/${commentId}`,
 
   // Notifications
   NOTIFICATIONS: "/notifications",
@@ -56,10 +59,14 @@ export const ENDPOINTS = {
   // Conversations
   CONVERSATIONS: "/conversations",
   CREATE_CONVERSATION: (receiverId: string) => `/conversations/${receiverId}`,
-  MESSAGES: (conversationId: string) => `/conversations/${conversationId}/messages`,
-  MESSAGE_UPLOAD: (conversationId: string) => `/conversations/${conversationId}/messages/upload`,
-  MARK_READ: (conversationId: string) => `/conversations/${conversationId}/read`,
-  DELETE_MESSAGE: (conversationId: string, messageId: string) => `/conversations/${conversationId}/messages/${messageId}`,
+  MESSAGES: (conversationId: string) =>
+    `/conversations/${conversationId}/messages`,
+  MESSAGE_UPLOAD: (conversationId: string) =>
+    `/conversations/${conversationId}/messages/upload`,
+  MARK_READ: (conversationId: string) =>
+    `/conversations/${conversationId}/read`,
+  DELETE_MESSAGE: (conversationId: string, messageId: string) =>
+    `/conversations/${conversationId}/messages/${messageId}`,
 
   // Search
   SEARCH: "/search",

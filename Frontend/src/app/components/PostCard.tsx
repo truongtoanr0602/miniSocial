@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import apiClient from "../../services/api";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useLangText } from "../../hooks/useLangText";
+import { resolveMediaUrl } from "../../utils/mediaUrl";
 import type { IComment, IPost, IUser } from "../../types/models";
 
 interface PostCardProps {
@@ -52,7 +53,7 @@ function getUserInfo(userValue: IUser | string | undefined, text: (vi: string, e
     name: userValue.display_name || userValue.username,
     username: `@${userValue.username}`,
     avatar:
-      userValue.avatar_url ||
+      resolveMediaUrl(userValue.avatar_url) ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent(userValue.display_name || userValue.username)}&background=7c3aed&color=fff`,
   };
 }
@@ -190,8 +191,8 @@ export const PostCard = memo(function PostCard({
 
   const currentUserName = currentUser?.display_name || currentUser?.username || "U";
   const currentUserAvatar =
-    (currentUser as any)?.avatar_url ||
-    currentUser?.avatar ||
+    resolveMediaUrl((currentUser as any)?.avatar_url) ||
+    resolveMediaUrl(currentUser?.avatar) ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserName)}&background=7c3aed&color=fff`;
 
   return (
@@ -302,17 +303,17 @@ export const PostCard = memo(function PostCard({
         <div className="relative">
           {post.media.length === 1 ? (
             post.media[0].type === "video" ? (
-              <video src={post.media[0].url} controls className="w-full max-h-[500px] bg-black" />
+              <video src={resolveMediaUrl(post.media[0].url)} controls className="w-full max-h-[500px] bg-black" />
             ) : (
-              <img src={post.media[0].url} alt={post.media[0].alt_text || "Post content"} className="w-full object-cover max-h-[500px]" />
+              <img src={resolveMediaUrl(post.media[0].url)} alt={post.media[0].alt_text || "Post content"} className="w-full object-cover max-h-[500px]" />
             )
           ) : (
             <div className="grid grid-cols-2 gap-1">
               {post.media.map((item, idx) => (
                 item.type === "video" ? (
-                  <video key={`${item.url}-${idx}`} src={item.url} controls className="h-48 w-full bg-black object-cover" />
+                  <video key={`${item.url}-${idx}`} src={resolveMediaUrl(item.url)} controls className="h-48 w-full bg-black object-cover" />
                 ) : (
-                  <img key={`${item.url}-${idx}`} src={item.url} alt={item.alt_text || `Media ${idx + 1}`} className="w-full h-48 object-cover" />
+                  <img key={`${item.url}-${idx}`} src={resolveMediaUrl(item.url)} alt={item.alt_text || `Media ${idx + 1}`} className="w-full h-48 object-cover" />
                 )
               ))}
             </div>

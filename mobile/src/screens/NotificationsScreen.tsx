@@ -33,7 +33,7 @@ const getNotificationText = (type: string, t: (vi: string, en: string) => string
   }
 };
 
-export default function NotificationsScreen() {
+export default function NotificationsScreen({ navigation }: any) {
   const { t } = useLanguage();
   const { socket } = useSocketContext();
   const [notifications, setNotifications] = useState<INotification[]>([]);
@@ -94,6 +94,36 @@ export default function NotificationsScreen() {
     }
   }, []);
 
+  const handleOpenNotification = useCallback((notification: INotification) => {
+    // 1. Đánh dấu đã đọc
+    if (!notification.is_read) {
+      markAsRead(notification._id);
+    }
+
+    // 2. Điều hướng theo loại notification
+    if (notification.type === "follow") {
+      // Follow → Mở trang cá nhân người follow mình
+      const sender = typeof notification.sender_id === "object"
+        ? notification.sender_id
+        : null;
+      const profileId = (sender as IUser | null)?._id || notification.target_id;
+      if (profileId) {
+        navigation.navigate("UserProfile", { userId: profileId });
+      }
+      return;
+    }
+
+    // Like / Comment / Mention → Mở bài viết
+    if (
+      (notification.type === "like" ||
+        notification.type === "comment" ||
+        notification.type === "mention") &&
+      notification.target_id
+    ) {
+      navigation.navigate("PostDetail", { postId: notification.target_id });
+    }
+  }, [markAsRead, navigation]);
+
   const renderItem = useCallback(({ item }: { item: INotification }) => {
     const sender = (typeof item.sender_id === "object" ? item.sender_id : null) as IUser | null;
     const senderName = sender?.display_name || sender?.username || t("Ai đó", "Someone");
@@ -101,7 +131,7 @@ export default function NotificationsScreen() {
 
     return (
       <Pressable
-        onPress={() => !item.is_read ? markAsRead(item._id) : undefined}
+        onPress={() => handleOpenNotification(item)}
         style={[
           styles.notifRow,
           !item.is_read ? styles.notifUnread : null,

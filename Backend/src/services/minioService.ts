@@ -14,6 +14,10 @@ export const minioClient = new Minio.Client({
 
 const BUCKET_NAME = 'social-media-posts';
 
+function getPublicObjectUrl(fileName: string): string {
+  return `${env.minioPublicUrl}/${BUCKET_NAME}/${fileName}`;
+}
+
 /**
  * Đảm bảo bucket tồn tại. Chạy 1 lần khi server khởi động.
  */
@@ -57,8 +61,8 @@ export const uploadAndCompressImage = async (fileBuffer: Buffer): Promise<string
     'Content-Type': 'image/webp'
   });
 
-  // Trả về URL để lưu vào MongoDB
-  return `http://${env.minioEndpoint}:${env.minioPort}/${BUCKET_NAME}/${fileName}`;
+  // Trả về URL public client truy cập được để lưu vào MongoDB.
+  return getPublicObjectUrl(fileName);
 };
 
 /**
@@ -80,5 +84,5 @@ export const uploadRawFile = async (
     'Content-Type': mimetype,
   });
 
-  return `http://${env.minioEndpoint}:${env.minioPort}/${BUCKET_NAME}/${fileName}`;
+  return getPublicObjectUrl(fileName);
 };

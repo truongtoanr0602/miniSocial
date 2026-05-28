@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import apiClient from "../../services/api";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useLangText } from "../../hooks/useLangText";
+import { resolveMediaUrl } from "../../utils/mediaUrl";
 import type { IPost, IUser } from "../../types/models";
 
 interface SearchResults {
@@ -19,7 +20,7 @@ interface SearchViewProps {
 
 function avatarFor(user: Pick<IUser, "display_name" | "username" | "avatar_url">) {
   return (
-    user.avatar_url ||
+    resolveMediaUrl(user.avatar_url) ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(user.display_name || user.username)}&background=7c3aed&color=fff`
   );
 }
@@ -242,7 +243,7 @@ export function SearchView({ onOpenProfile, onOpenPost, onStartConversation }: S
                           className="flex w-full items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors text-left"
                         >
                           {firstMedia ? (
-                            <img src={firstMedia.url} alt="Post" className="w-12 h-12 rounded-lg object-cover" />
+                            <img src={resolveMediaUrl(firstMedia.url)} alt="Post" className="w-12 h-12 rounded-lg object-cover" />
                           ) : (
                             <span className="w-12 h-12 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg flex items-center justify-center text-lg">
                               #

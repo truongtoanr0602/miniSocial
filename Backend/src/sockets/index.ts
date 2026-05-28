@@ -21,7 +21,9 @@ export function initializeSocket(httpServer: HttpServer): Server {
         // Cho phép: no-origin (mobile app), localhost, LAN IPs
         if (
           !origin ||
-          /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin)
+          /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?$/.test(
+            origin,
+          )
         ) {
           callback(null, true);
         } else {
@@ -45,7 +47,7 @@ export function initializeSocket(httpServer: HttpServer): Server {
     const userId = s.data.userId;
     console.log(`[Socket] Connected: ${userId} (${s.id})`);
 
-    // 1. Đăng ký user online
+    // 1. Đăng ký user online`
     setUserOnline(userId, s.id);
 
     // 2. Flush tin nhắn chưa deliver khi user online lại
