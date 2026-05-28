@@ -162,7 +162,32 @@ const getValidMediaUrl = (url?: string) => {
         return;
       }
 
-      void loadConversations();
+      // Nếu tin nhắn đến cho conversation khác, tăng unreadCount cục bộ để hiển thị ngay
+      setConversations((prev) => {
+        let found = false;
+        const next = prev.map((conv) => {
+          if (conv._id === conversationId) {
+            found = true;
+            return {
+              ...conv,
+              unreadCount: (conv.unreadCount || 0) + 1,
+              lastMessage: incoming,
+            };
+          }
+          return conv;
+        });
+
+        // Nếu không tìm thấy conversation trong list hiện tại, trigger reload để lấy dữ liệu mới từ server
+        if (!found) {
+          // tối ưu: vẫn trả về prev để không mất dữ liệu UI, loadConversations sẽ cập nhật sau
+          void loadConversations();
+          return prev;
+        }
+
+        // Đồng thời lấy lại danh sách từ server để đồng bộ (không block UI)
+        void loadConversations();
+        return next;
+      });
     };
 
     if (selectedConvId) {
