@@ -3,6 +3,7 @@ import { Camera, Loader2, Smile, Video } from "lucide-react";
 import { toast } from "sonner";
 import { PostCard } from "./PostCard";
 import { CreatePostModal } from "./CreatePostModal";
+import { ShareModal } from "./ShareModal";
 import apiClient from "../../services/api";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useLangText } from "../../hooks/useLangText";
@@ -26,6 +27,7 @@ export function PostFeed({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isLocalComposerOpen, setIsLocalComposerOpen] = useState(false);
+  const [shareModalPostId, setShareModalPostId] = useState<string | null>(null);
   const currentUser = useCurrentUser();
   const text = useLangText();
 
@@ -127,29 +129,9 @@ export function PostFeed({
     setPosts((prev) => prev.filter((post) => post._id !== postId));
   }, []);
 
-  const handleShare = useCallback(async (postId: string) => {
-    try {
-      const response = await apiClient.post(`/post/${postId}/share`);
-      const shares = response.data.data?.shares;
-      setPosts((prev) =>
-        prev.map((post) =>
-          post._id === postId
-            ? {
-                ...post,
-                stats: {
-                  ...post.stats,
-                  shares: typeof shares === "number" ? shares : post.stats.shares + 1,
-                },
-              }
-            : post,
-        ),
-      );
-      await sharePostLink(postId);
-    } catch (err) {
-      console.error("Share failed:", err);
-      toast.error(text("Không thể chia sẻ bài viết.", "Could not share post."));
-    }
-  }, [text]);
+  const handleShare = useCallback((postId: string) => {
+    setShareModalPostId(postId);
+  }, []);
 
   const handleOpenCreatePost = useCallback(() => {
     if (onCreatePost) {
@@ -259,6 +241,13 @@ export function PostFeed({
       onClose={() => setIsLocalComposerOpen(false)}
       onPostCreated={() => void fetchPosts()}
     />
+    {shareModalPostId && (
+      <ShareModal
+        postId={shareModalPostId}
+        isOpen={!!shareModalPostId}
+        onClose={() => setShareModalPostId(null)}
+      />
+    )}
     </>
   );
 }

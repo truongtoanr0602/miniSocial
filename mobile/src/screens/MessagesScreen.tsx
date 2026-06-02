@@ -36,7 +36,7 @@ import { ScreenGradient } from "../components/common/ScreenGradient";
 const FlashListAny = FlashList as any;
 
 
-export default function MessagesScreen({ route }: any) {
+export default function MessagesScreen({ route, navigation }: any) {
   const { user } = useAuth();
   const { t } = useLanguage();
   const { socket } = useSocketContext();
@@ -57,7 +57,7 @@ const getValidMediaUrl = (url?: string) => {
   let formattedUrl = url.replace(/\\/g, '/');
   
   // Tính MinIO host từ BASE_URL (port 9000). Giữ fallback nếu parsing lỗi.
-  let MINIO_URL = "http://192.168.0.101:9000";
+  let MINIO_URL = "http://192.168.0.105:9000";
   try {
     const parsed = new URL(BASE_URL);
     MINIO_URL = `${parsed.protocol}//${parsed.hostname}:9000`;
@@ -467,6 +467,7 @@ const messageType = msg.messageType || "text";
 const mediaUrl = msg.mediaUrl ? getValidMediaUrl(msg.mediaUrl) : "";
 const content = msg.content || "";
 const createdAt = msg.createdAt || msg.created_at;
+const sharedPost = msg.sharedPostId;
                   return (
                     <View
                       key={msg._id || `${selectedConvId}-${createdAt || idx}`}
@@ -530,7 +531,38 @@ const createdAt = msg.createdAt || msg.created_at;
                             </Text>
                           </Pressable>
                         ) : null}
-                        {content && messageType !== "file" ? (
+                        {messageType === "shared_post" && sharedPost ? (
+                          <Pressable
+                            onPress={() => navigation.navigate("PostDetail", { postId: sharedPost._id || sharedPost })}
+                            style={{
+                              marginTop: 4,
+                              marginBottom: content ? 8 : 4,
+                              padding: 10,
+                              backgroundColor: isOwn ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.05)",
+                              borderRadius: 12,
+                              minWidth: 150,
+                            }}
+                          >
+                            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                              <Image 
+                                source={{ uri: sharedPost.author_id?.avatar_url || `https://ui-avatars.com/api/?name=${sharedPost.author_id?.username || 'User'}` }} 
+                                style={{ width: 24, height: 24, borderRadius: 12, marginRight: 8 }}
+                              />
+                              <Text style={{ fontSize: 12, fontWeight: "bold", color: isOwn ? "#fff" : palette.ink }}>
+                                {sharedPost.author_id?.display_name || sharedPost.author_id?.username || "User"}
+                              </Text>
+                            </View>
+                            <Text numberOfLines={2} style={{ fontSize: 13, color: isOwn ? "#fff" : palette.ink }}>
+                              {sharedPost.content || t('Đã chia sẻ một bài viết', 'Shared a post')}
+                            </Text>
+                            {sharedPost.media && sharedPost.media.length > 0 && (
+                              <Text style={{ fontSize: 11, fontStyle: 'italic', marginTop: 4, color: isOwn ? "rgba(255,255,255,0.8)" : palette.muted }}>
+                                {t('[Đính kèm hình ảnh/video]', '[Media attached]')}
+                              </Text>
+                            )}
+                          </Pressable>
+                        ) : null}
+                        {content && messageType !== "file" && messageType !== "shared_post" ? (
                           <Text
                             style={{
                               color: isOwn ? "#fff" : palette.ink,

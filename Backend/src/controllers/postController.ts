@@ -130,12 +130,62 @@ export const sharePost = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+export const repostPost = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).userId as string;
+    const { postId } = req.params as { postId: string };
+    const { content } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
+      errorResponse(req, res, "post.INVALID_ID", 400, "INVALID_ID");
+      return;
+    }
+
+    const originalPost = await PostModel.findByIdAndUpdate(
+      postId,
+      { $inc: { "stats.shares": 1 } },
+      { new: true }
+    );
+
+    if (!originalPost) {
+      errorResponse(req, res, "post.NOT_FOUND", 404, "NOT_FOUND");
+      return;
+    }
+
+    const newPost = await PostModel.create({
+      author_id: new mongoose.Types.ObjectId(userId),
+      content: content?.trim() || "",
+      is_repost: true,
+      original_post_id: new mongoose.Types.ObjectId(postId),
+      media: originalPost.media, // Copy media from original post so clients can render it
+    });
+
+    const populatedPost = await PostModel.findById(newPost._id)
+      .populate("author_id", "username display_name avatar_url")
+      .populate({
+        path: "original_post_id",
+        select: "content media author_id is_repost stats created_at visibility",
+        populate: { path: "author_id", select: "_id username display_name avatar_url" }
+      });
+
+    successResponse(req, res, populatedPost, "post.REPOST_SUCCESS", 201, "REPOST_SUCCESS");
+  } catch (error: any) {
+    console.error("Error reposting post:", error);
+    errorResponse(req, res, "common.SERVER_ERROR", 500, "SERVER_ERROR");
+  }
+};
+
 export const getNewsfeed = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).userId as string | undefined;
     const posts = await PostModel.find({ visibility: "public" })
       .sort({ created_at: -1 })
       .populate("author_id", "username display_name avatar_url")
+      .populate({
+        path: "original_post_id",
+        select: "content media author_id is_repost stats created_at visibility",
+        populate: { path: "author_id", select: "_id username display_name avatar_url" }
+      })
       .lean();
 
     successResponse(
@@ -164,6 +214,11 @@ export const getPostById = async (req: Request, res: Response): Promise<void> =>
 
     const post = await PostModel.findById(postId)
       .populate("author_id", "username display_name avatar_url")
+      .populate({
+        path: "original_post_id",
+        select: "content media author_id is_repost stats created_at visibility",
+        populate: { path: "author_id", select: "_id username display_name avatar_url" }
+      })
       .lean();
 
     if (!post) {

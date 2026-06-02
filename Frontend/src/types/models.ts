@@ -36,6 +36,8 @@ export interface IPost {
   content?: string;
   hashtags: string[];
   media: IMedia[];
+  is_repost?: boolean;
+  original_post_id?: any;
   visibility: "public" | "friends" | "private";
   stats: {
     likes: number;

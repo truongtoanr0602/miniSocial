@@ -21,8 +21,11 @@ import {
 
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import * as SecureStore from "expo-secure-store";
+import { useNavigation } from "@react-navigation/native";
 import { api } from "../api/client";
 import { ENDPOINTS } from "../api/endpoints";
+import { ShareBottomSheet } from "./ShareBottomSheet";
 import { useAuth } from "../store/AuthContext";
 import { useLanguage } from "../store/LanguageContext";
 import { palette } from "../theme";
@@ -34,7 +37,7 @@ const getValidMediaUrl = (url?: string) => {
   let formattedUrl = url.replace(/\\/g, '/');
   
   // determine MinIO host based on app API host so developer doesn't need to hardcode
-  let MINIO_URL = "http://192.168.0.101:9000"; // fallback if parsing fails
+  let MINIO_URL = "http://192.168.0.105:9000"; // fallback if parsing fails
   try {
     const parsed = new URL(BASE_URL);
     MINIO_URL = `${parsed.protocol}//${parsed.hostname}:9000`;
@@ -57,6 +60,35 @@ const checkIsVideo = (url?: string) => {
   return /\.(mp4|mov|webm)$/i.test(url);
 };
 
+const VideoPlayerItem = ({ url, isMuted, onToggleMute, hideMuteButton = false }: { url: string, isMuted: boolean, onToggleMute?: () => void, hideMuteButton?: boolean }) => {
+  const player = useVideoPlayer(url, p => {
+    p.loop = false;
+    p.muted = isMuted;
+  });
+
+  useEffect(() => {
+    if (player) {
+      player.muted = isMuted;
+    }
+  }, [isMuted, player]);
+
+  return (
+    <View style={styles.mediaVideoContainer}>
+      <VideoView
+        player={player}
+        style={styles.mediaVideo}
+        allowsFullscreen
+        allowsPictureInPicture
+      />
+      {!hideMuteButton && onToggleMute && (
+        <Pressable style={styles.customMuteBtn} onPress={onToggleMute}>
+          {isMuted ? <VolumeX color="#fff" size={20} /> : <Volume2 color="#fff" size={20} />}
+        </Pressable>
+      )}
+    </View>
+  );
+};
+
 
 interface Props {
   post: IPost;
@@ -67,6 +99,7 @@ interface Props {
 function PostItem({ post, onRefresh, onOpenProfile }: Props) {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const navigation = useNavigation<any>();
   const [text, setText] = useState("");
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<IComment[]>([]);
@@ -80,6 +113,14 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
   const [commentsCount, setCommentsCount] = useState(post.stats?.comments || 0);
   const [sharesCount, setSharesCount] = useState(post.stats?.shares || 0);
   const [isMuted, setIsMuted] = useState(false);
+  const [isShareModalVisible, setIsShareModalVisible] = useState(false);
+  const [token, setToken] = useState<string>("");
+
+  useEffect(() => {
+    SecureStore.getItemAsync("token").then((t:any) => {
+      if (t) setToken(t);
+    });
+  }, []);
 
   const author = (
     typeof post.author_id === "object" ? post.author_id : null
@@ -259,39 +300,9 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
     ]);
   }, [blockAuthor, deletePost, isOwner, reportPost, t]);
 
-  const handleShare = useCallback(async () => {
-    try {
-      const res = await api.post(ENDPOINTS.SHARE_POST(post._id));
-      const nextShares = res.data.data?.shares;
-      setSharesCount((prev) => (typeof nextShares === "number" ? nextShares : prev + 1));
-
-      // Refresh feed so the shared post appears in news feed
-      try {
-        onRefresh();
-      } catch (e) {
-        // ignore
-      }
-
-      // Offer to view the shared post in user's profile
-      Alert.alert(
-        t("Chia sẻ", "Share"),
-        t("Bài viết đã được chia sẻ. Bạn muốn xem nó trên trang cá nhân của bạn không?", "Post shared. View it on your profile?"),
-        [
-          {
-            text: t("Xem trang cá nhân", "View profile"),
-            onPress: () => {
-              const myId = (user as any)?._id || (user as any)?.id;
-              if (myId && onOpenProfile) onOpenProfile(String(myId));
-            },
-          },
-          { text: t("Đóng", "Close"), style: "cancel" },
-        ],
-      );
-    } catch (e) {
-      console.error("[PostItem] Share error:", e);
-      Alert.alert(t("Chia sẻ", "Share"), t("Không thể chia sẻ bài viết.", "Could not share post."));
-    }
-  }, [post._id, onRefresh, onOpenProfile, t, user]);
+  const handleShare = useCallback(() => {
+    setIsShareModalVisible(true);
+  }, []);
   
 
   const handleBookmark = useCallback(() => {
@@ -365,31 +376,84 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
         </View>
       ) : null}
 
-      {post.media && post.media.length > 0 ? (
+      {post.is_repost && post.original_post_id ? (
+        <Pressable 
+          onPress={() => {
+             if (post.original_post_id._id) {
+               navigation.navigate("PostDetail", { postId: post.original_post_id._id });
+             }
+          }}
+          style={{
+            marginHorizontal: 16,
+            marginBottom: 12,
+            borderWidth: 1,
+            borderColor: palette.line,
+            borderRadius: 16,
+            overflow: "hidden",
+            backgroundColor: "#fafafa"
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: 1, borderBottomColor: palette.line, backgroundColor: "#fff" }}>
+            <Image 
+              source={{ uri: getValidMediaUrl(post.original_post_id.author_id?.avatar_url) || `https://ui-avatars.com/api/?name=${post.original_post_id.author_id?.username || 'User'}` }} 
+              style={{ width: 24, height: 24, borderRadius: 12, marginRight: 8 }}
+            />
+            <Text style={{ fontWeight: "600", fontSize: 13, color: palette.ink }}>
+              {post.original_post_id.author_id?.display_name || post.original_post_id.author_id?.username || "User"}
+            </Text>
+            <Text style={{ fontSize: 11, color: palette.muted, marginLeft: 6 }}>
+              • {post.original_post_id.created_at ? new Date(post.original_post_id.created_at).toLocaleDateString() : ""}
+            </Text>
+          </View>
+          {post.original_post_id.content && (
+            <View style={{ padding: 12, backgroundColor: "#fafafa" }}>
+              <Text style={{ fontSize: 14, color: palette.ink }}>{post.original_post_id.content}</Text>
+            </View>
+          )}
+          {post.original_post_id.media && post.original_post_id.media.length > 0 && (
+            <View style={{ borderTopWidth: 1, borderTopColor: palette.line }}>
+              {checkIsVideo(post.original_post_id.media[0].url) ? (
+                <VideoPlayerItem 
+                  url={getValidMediaUrl(post.original_post_id.media[0].url)} 
+                  isMuted={isMuted} 
+                  hideMuteButton={true} 
+                />
+              ) : (
+                <Image
+                  source={{ uri: getValidMediaUrl(post.original_post_id.media[0].url) }}
+                  style={[styles.mediaImage, { height: 200 }]}
+                  contentFit="cover"
+                />
+              )}
+            </View>
+          )}
+          {post.original_post_id.stats && (
+            <View style={{ flexDirection: "row", padding: 12, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: palette.line, gap: 16 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Heart color={palette.muted} size={14} />
+                <Text style={{ fontSize: 12, color: palette.muted }}>{post.original_post_id.stats.likes}</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <MessageCircle color={palette.muted} size={14} />
+                <Text style={{ fontSize: 12, color: palette.muted }}>{post.original_post_id.stats.comments}</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Share2 color={palette.muted} size={14} />
+                <Text style={{ fontSize: 12, color: palette.muted }}>{post.original_post_id.stats.shares}</Text>
+              </View>
+            </View>
+          )}
+        </Pressable>
+      ) : post.media && post.media.length > 0 ? (
         <View> 
           
           {checkIsVideo(post.media[0].url) ? (
-            <View style={styles.mediaVideoContainer}>
-              <VideoView
-                player={useVideoPlayer(getValidMediaUrl(post.media[0].url), player => {
-                  player.loop = false;
-                  player.muted = isMuted;
-                })}
-                style={styles.mediaVideo}
-                allowsFullscreen
-                allowsPictureInPicture
-              />
-              <Pressable 
-                style={styles.customMuteBtn} 
-                onPress={() => setIsMuted(!isMuted)}
-              >
-                {isMuted ? (
-                  <VolumeX color="#fff" size={20} />
-                ) : (
-                  <Volume2 color="#fff" size={20} />
-                )}
-              </Pressable>
-            </View>
+                <VideoPlayerItem 
+                  url={getValidMediaUrl(post.media[0].url)} 
+                  isMuted={isMuted} 
+                  onToggleMute={() => setIsMuted(!isMuted)} 
+                  hideMuteButton={false} 
+                />
           ) : (
             <Image
               source={{ uri: getValidMediaUrl(post.media[0].url) }}
@@ -526,6 +590,13 @@ function PostItem({ post, onRefresh, onOpenProfile }: Props) {
           )}
         </View>
       ) : null}
+
+      <ShareBottomSheet
+        postId={post._id}
+        isVisible={isShareModalVisible}
+        onClose={() => setIsShareModalVisible(false)}
+        token={token}
+      />
     </View>
   );
 }

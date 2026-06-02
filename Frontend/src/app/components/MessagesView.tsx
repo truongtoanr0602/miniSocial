@@ -20,6 +20,7 @@ import {
 } from "../../hooks/useConversations";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useLangText } from "../../hooks/useLangText";
+import { PostDetailModal } from "./PostDetailModal";
 
 interface MessagesViewProps {
   initialConversationId?: string | null;
@@ -63,10 +64,14 @@ function getMessageSenderId(message: IMessage): string | null {
   );
 }
 
-function getMessageType(message: IMessage): "text" | "image" | "file" {
-  return message.messageType === "image" || message.messageType === "file"
-    ? message.messageType
-    : "text";
+function getMessageType(message: Partial<IMessage> | null | undefined): string | null {
+  if (!message) return null;
+  return message.messageType || "text";
+}
+
+function getSharedPost(message: any): any {
+  if (!message) return null;
+  return message.sharedPostId || null;
 }
 
 function getMessageMediaUrl(message: IMessage): string {
@@ -84,7 +89,7 @@ function getConversationPreview(
   text: (vi: string, en: string) => string,
 ): string {
   if (!lastMessage) {
-    return text("Báº¯t Ä‘áº§u cuá»™c trÃ² chuyá»‡n...", "Start a conversation...");
+    return text("Bắt đầu cuộc trò chuyện...", "Start a conversation...");
   }
   const content = lastMessage.content?.trim();
   if (content) return content;
@@ -93,7 +98,7 @@ function getConversationPreview(
   return text("Tin nhắn", "Message");
 }
 
-export function MessagesView({ initialConversationId = null }: MessagesViewProps) {
+export function MessagesView({ initialConversationId = null, onOpenProfile }: MessagesViewProps) {
   const currentUser = useCurrentUser();
   const text = useLangText();
   const {
@@ -108,6 +113,7 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
   const [messageText, setMessageText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showChatOptions, setShowChatOptions] = useState(false);
+  const [selectedSharedPostId, setSelectedSharedPostId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -370,6 +376,7 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                     const mediaUrl = getMessageMediaUrl(message);
                     const createdAt = getMessageCreatedAt(message);
                     const content = message.content || "";
+                    const sharedPost = getSharedPost(message);
 
                     return (
                       <div
@@ -405,7 +412,36 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
                               <span className="truncate">{content || text("Tệp đính kèm", "Attachment")}</span>
                             </a>
                           ) : null}
-                          {content && messageType !== "file" ? (
+                          
+                          {messageType === "shared_post" && sharedPost ? (
+                            <div 
+                              className={`mb-2 p-3 rounded-xl cursor-pointer transition-colors ${
+                                isOwn ? "bg-white/10 hover:bg-white/20" : "bg-white border hover:bg-gray-50"
+                              }`}
+                              onClick={() => setSelectedSharedPostId(sharedPost._id || sharedPost)}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <img 
+                                  src={sharedPost.author_id?.avatar_url || `https://ui-avatars.com/api/?name=${sharedPost.author_id?.username || 'User'}`} 
+                                  alt="Avatar" 
+                                  className="w-6 h-6 rounded-full"
+                                />
+                                <span className={`text-xs font-semibold ${isOwn ? "text-white" : "text-gray-800"}`}>
+                                  {sharedPost.author_id?.display_name || sharedPost.author_id?.username || 'Người dùng'}
+                                </span>
+                              </div>
+                              <p className={`text-sm line-clamp-2 ${isOwn ? "text-white" : "text-gray-800"}`}>
+                                {sharedPost.content || text('Đã chia sẻ một bài viết', 'Shared a post')}
+                              </p>
+                              {sharedPost.media && sharedPost.media.length > 0 && (
+                                <div className="mt-2 text-xs opacity-80 italic">
+                                  {text('[Đính kèm hình ảnh/video]', '[Media attached]')}
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
+
+                          {content && messageType !== "file" && messageType !== "shared_post" ? (
                             <p className="text-sm">{content}</p>
                           ) : null}
                           {createdAt ? (
@@ -493,6 +529,15 @@ export function MessagesView({ initialConversationId = null }: MessagesViewProps
           )}
         </div>
       </div>
+      <PostDetailModal
+        isOpen={!!selectedSharedPostId}
+        postId={selectedSharedPostId || ''}
+        onClose={() => setSelectedSharedPostId(null)}
+        onOpenProfile={(id) => {
+          setSelectedSharedPostId(null);
+          if (onOpenProfile) onOpenProfile(id);
+        }}
+      />
     </div>
   );
 }

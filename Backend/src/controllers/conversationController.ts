@@ -194,7 +194,15 @@ export const getMessages = async (
       .sort({ createdAt: -1 }) // Mới nhất lên đầu để phân trang dễ
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate("senderId", "_id username display_name avatar_url");
+      .populate("senderId", "_id username display_name avatar_url")
+      .populate({
+        path: "sharedPostId",
+        select: "content media author_id is_repost stats created_at visibility",
+        populate: {
+          path: "author_id",
+          select: "_id username display_name avatar_url"
+        }
+      });
 
     successResponse(
       req,
@@ -234,7 +242,7 @@ export const sendMessage = async (
     const senderId = req.userId as string;
     const { conversationId } = req.params as { conversationId: string };
     const uploadedFile = (req as any).file as Express.Multer.File | undefined;
-    let { content = "", messageType = "text", mediaUrl } = req.body;
+    let { content = "", messageType = "text", mediaUrl, sharedPostId } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(conversationId)) {
       errorResponse(
@@ -262,7 +270,7 @@ export const sendMessage = async (
       }
     }
 
-    if (!["text", "image", "file"].includes(messageType)) {
+    if (!["text", "image", "file", "shared_post"].includes(messageType)) {
       errorResponse(req, res, "chat.INVALID_MESSAGE_TYPE", 400, "INVALID_MESSAGE_TYPE");
       return;
     }
@@ -331,6 +339,9 @@ export const sendMessage = async (
     };
     if (mediaUrl) {
       messageData.mediaUrl = mediaUrl;
+    }
+    if (messageType === 'shared_post' && sharedPostId) {
+      messageData.sharedPostId = new mongoose.Types.ObjectId(sharedPostId);
     }
 
     const newMessage = await Message.create(messageData);

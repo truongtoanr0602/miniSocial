@@ -7,6 +7,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: '1.0.0',
   orientation: 'portrait',
   assetBundlePatterns: ['**/*'],
+  scheme: 'minisocial',
   plugins: [
     [
       "expo-camera",
@@ -27,6 +28,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "savePhotosPermission": "Allow MiniSocial to save photos"
       }
     ],
-    "expo-video"
+    "expo-video",
+    "expo-web-browser"
   ]
 });

@@ -41,6 +41,11 @@ export const getPersonalFeed = async (
       .skip((page - 1) * limit)
       .limit(limit)
       .populate("author_id", "username display_name avatar_url")
+      .populate({
+        path: "original_post_id",
+        select: "content media author_id is_repost stats created_at visibility",
+        populate: { path: "author_id", select: "_id username display_name avatar_url" }
+      })
       .lean();
 
     const reactions = await Reaction.find({

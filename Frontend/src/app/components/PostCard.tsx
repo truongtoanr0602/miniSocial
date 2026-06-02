@@ -298,7 +298,54 @@ export const PostCard = memo(function PostCard({
         ) : null}
       </div>
 
-      {post.media?.length > 0 ? (
+      {post.is_repost && post.original_post_id ? (
+        <div className="mx-4 mb-3 border border-gray-200 rounded-xl overflow-hidden bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => post.original_post_id?.author_id?._id && onOpenProfile?.(post.original_post_id.author_id._id)}>
+          <div className="p-3 flex items-center gap-2 bg-white">
+            <img 
+              src={post.original_post_id.author_id?.avatar_url || `https://ui-avatars.com/api/?name=${post.original_post_id.author_id?.username || 'User'}&background=7c3aed&color=fff`} 
+              alt="Author" 
+              className="w-6 h-6 rounded-full object-cover"
+            />
+            <span className="font-semibold text-sm text-gray-900">
+              {post.original_post_id.author_id?.display_name || post.original_post_id.author_id?.username || 'User'}
+            </span>
+            <span className="text-xs text-gray-500">• {timeAgo(post.original_post_id.created_at || post.created_at, text)}</span>
+          </div>
+          {post.original_post_id.content && (
+            <div className="px-3 pb-2 text-sm text-gray-800 whitespace-pre-wrap">
+              {post.original_post_id.content}
+            </div>
+          )}
+          {post.original_post_id.media?.length > 0 ? (
+            <div className="relative border-y border-gray-200">
+              {post.original_post_id.media.length === 1 ? (
+                post.original_post_id.media[0].type === "video" ? (
+                  <video src={post.original_post_id.media[0].url} controls className="w-full max-h-[400px] bg-black" />
+                ) : (
+                  <img src={post.original_post_id.media[0].url} alt={post.original_post_id.media[0].alt_text || "Post content"} className="w-full object-cover max-h-[400px]" />
+                )
+              ) : (
+                <div className="grid grid-cols-2 gap-1">
+                  {post.original_post_id.media.map((item: any, idx: number) => (
+                    item.type === "video" ? (
+                      <video key={`${item.url}-${idx}`} src={item.url} controls className="h-48 w-full bg-black object-cover" />
+                    ) : (
+                      <img key={`${item.url}-${idx}`} src={item.url} alt={item.alt_text || `Media ${idx + 1}`} className="w-full h-48 object-cover" />
+                    )
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+          {post.original_post_id.stats && (
+            <div className="px-3 py-2 bg-white flex gap-4 text-xs text-gray-500">
+              <span className="flex items-center gap-1"><Heart className="w-3.5 h-3.5" /> {post.original_post_id.stats.likes}</span>
+              <span className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" /> {post.original_post_id.stats.comments}</span>
+              <span className="flex items-center gap-1"><Share2 className="w-3.5 h-3.5" /> {post.original_post_id.stats.shares}</span>
+            </div>
+          )}
+        </div>
+      ) : post.media?.length > 0 ? (
         <div className="relative">
           {post.media.length === 1 ? (
             post.media[0].type === "video" ? (
