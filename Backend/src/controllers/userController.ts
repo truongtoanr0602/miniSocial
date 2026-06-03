@@ -30,6 +30,12 @@ export const getUserProfile = async (
     const visibilityFilter = await getVisibilityFilter(viewerId, String(id));
     const posts = await PostModel.find({ author_id: id, ...visibilityFilter } as any)
       .sort({ created_at: -1 })
+      .populate("author_id", "username display_name avatar_url")
+      .populate({
+        path: "original_post_id",
+        select: "content media author_id is_repost stats created_at visibility",
+        populate: { path: "author_id", select: "_id username display_name avatar_url" }
+      })
       .lean();
 
     successResponse(
@@ -240,6 +246,11 @@ export const getMyProfile = async (
       PostModel.find({ author_id: userId } as any)
         .sort({ created_at: -1 })
         .populate("author_id", "username display_name avatar_url")
+        .populate({
+          path: "original_post_id",
+          select: "content media author_id is_repost stats created_at visibility",
+          populate: { path: "author_id", select: "_id username display_name avatar_url" }
+        })
         .lean(),
       Follow.countDocuments({ following_id: userId, status: "accepted" }),
       Follow.countDocuments({ follower_id: userId, status: "accepted" }),

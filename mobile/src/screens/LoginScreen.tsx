@@ -17,6 +17,7 @@ import {
 } from "../api/config";
 import { ui, palette } from "../theme";
 import { ScreenGradient } from "../components/common/ScreenGradient";
+import * as SecureStore from "expo-secure-store";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -141,7 +142,6 @@ export default function LoginScreen({ navigation }: any) {
     isGoogleSubmitting ||
     isSubmitting ||
     (IS_GOOGLE_LOGIN_CONFIGURED && !googleRequest);
-
   return (
     <ScreenGradient style={ui.page}>
       <View style={styles.header}>
@@ -291,6 +291,8 @@ export default function LoginScreen({ navigation }: any) {
             {t("Chưa có tài khoản?", "No account yet?")} <Text style={ui.buttonGhostText}>{t("Đăng ký ngay", "Sign up now")}</Text>
           </Text>
         </Pressable>
+
+
       </View>
     </ScreenGradient>
   );
@@ -371,4 +373,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   registerLink: { color: palette.muted, fontSize: 14 },
+  divider: { flexDirection: "row", alignItems: "center", marginVertical: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#e5e7eb" },
+  dividerText: { marginHorizontal: 16, color: palette.muted, fontSize: 14, fontWeight: "500" },
 });

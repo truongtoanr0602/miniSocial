@@ -7,6 +7,7 @@ export interface IMessage extends Document {
   messageType: string;
   content: string;
   mediaUrl?: string;
+  sharedPostId?: mongoose.Types.ObjectId;
   deletedBy?: mongoose.Types.ObjectId;
   deliveredAt: Date | null;
   readAt: Date | null;
@@ -36,7 +37,7 @@ const messageSchema = new Schema<IMessage>(
     },
     messageType: {
       type: String,
-      enum: ["text", "image", "file"],
+      enum: ["text", "image", "file", "shared_post"],
       default: "text",
     },
     content: {
@@ -59,6 +60,10 @@ const messageSchema = new Schema<IMessage>(
     readAt: {
       type: Date,
       default: null,
+    },
+    sharedPostId: {
+      type: Schema.Types.ObjectId,
+      ref: "Post",
     },
   },
   {

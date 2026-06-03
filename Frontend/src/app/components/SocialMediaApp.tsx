@@ -84,7 +84,7 @@ export function SocialMediaApp() {
           />
         );
       case "messages":
-        return <MessagesView initialConversationId={selectedConversationId} />;
+        return <MessagesView initialConversationId={selectedConversationId} onOpenProfile={handleOpenProfile} />;
       case "search":
         return (
           <SearchView

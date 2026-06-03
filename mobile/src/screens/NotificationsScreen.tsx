@@ -10,6 +10,7 @@ import { ScreenGradient } from "../components/common/ScreenGradient";
 import { useLanguage } from "../store/LanguageContext";
 import { useSocketContext } from "../store/SocketContext";
 import type { INotification, IUser } from "../types/models";
+import { useNavigation } from "@react-navigation/native";
 
 const FlashListAny = FlashList as any;
 
@@ -36,6 +37,7 @@ const getNotificationText = (type: string, t: (vi: string, en: string) => string
 export default function NotificationsScreen({ navigation }: any) {
   const { t } = useLanguage();
   const { socket } = useSocketContext();
+  const navigation: any = useNavigation();
   const [notifications, setNotifications] = useState<INotification[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -129,6 +131,26 @@ export default function NotificationsScreen({ navigation }: any) {
     const senderName = sender?.display_name || sender?.username || t("Ai đó", "Someone");
     const senderAvatar = sender?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=7c3aed&color=fff`;
 
+    const handlePress = async () => {
+      try {
+        await markAsRead(item._id);
+      } catch (e) {
+        // ignore
+      }
+
+      // Điều hướng tùy loại thông báo
+      const target = item.target_id as string | undefined | null;
+      if (item.type === "follow" && target) {
+        navigation.navigate("UserProfile", { userId: String(target) });
+        return;
+      }
+
+      if ((item.type === "like" || item.type === "comment" || item.type === "mention") && target) {
+        navigation.navigate("PostDetail", { postId: String(target) });
+        return;
+      }
+    };
+
     return (
       <Pressable
         onPress={() => handleOpenNotification(item)}
@@ -158,7 +180,7 @@ export default function NotificationsScreen({ navigation }: any) {
         {!item.is_read ? <View style={styles.unreadDot} /> : null}
       </Pressable>
     );
-  }, [markAsRead, t]);
+  }, [markAsRead, t, navigation]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
