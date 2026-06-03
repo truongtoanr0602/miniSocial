@@ -1,0 +1,356 @@
+# Bộ Test Case Toàn Diện cho MiniSocial Backend API
+
+## Mô tả
+
+Viết bộ test case (integration test) cho toàn bộ API Backend của dự án miniSocial. Các test sẽ gọi trực tiếp qua HTTP endpoint, sử dụng MongoDB in-memory để không ảnh hưởng database thật.
+
+## Công nghệ test
+
+- **Jest** — Test runner
+- **Supertest** — HTTP assertion library (gọi API trực tiếp)
+- **mongodb-memory-server** — MongoDB in-memory cho test (không cần Docker/DB thật)
+- **@jest/globals** — ESM-compatible Jest imports
+
+## Open Questions
+
+> [!IMPORTANT]
+> **Câu hỏi 1:** Dự án Backend đang dùng `"type": "module"` (ESM). Tôi sẽ cấu hình Jest với `ts-jest/presets/default-esm` để tương thích. Bạn có muốn giữ nguyên ESM hay chuyển sang CJS cho phần test?
+
+> [!IMPORTANT]
+> **Câu hỏi 2:** Bạn có muốn tôi viết test cho cả phần **Socket.IO realtime** (chat handlers, notification handlers) hay chỉ tập trung vào **REST API endpoints**?
+
+> [!IMPORTANT]
+> **Câu hỏi 3:** Dự án sử dụng **MinIO** cho upload ảnh. Trong test tôi sẽ **mock** service MinIO (vì không cần server MinIO thật khi test). Bạn có đồng ý không?
+
+## Proposed Changes
+
+### Cấu trúc thư mục test
+
+```
+Backend/
+├── jest.config.ts              # [NEW] Cấu hình Jest
+├── src/
+│   └── __tests__/
+│       ├── setup.ts            # [NEW] Setup MongoDB in-memory + app instance
+│       ├── helpers.ts          # [NEW] Helper functions (tạo user, lấy token, ...)
+│       ├── auth.test.ts        # [NEW] Test Authentication API
+│       ├── post.test.ts        # [NEW] Test Post CRUD API
+│       ├── comment.test.ts     # [NEW] Test Comment API
+│       ├── reaction.test.ts    # [NEW] Test Like/React API
+│       ├── follow.test.ts      # [NEW] Test Follow/Block API
+│       ├── notification.test.ts # [NEW] Test Notification API
+│       ├── conversation.test.ts # [NEW] Test Chat/Messaging API
+│       ├── search.test.ts      # [NEW] Test Search API
+│       ├── report.test.ts      # [NEW] Test Report API
+│       ├── feed.test.ts        # [NEW] Test Personal Feed API
+│       └── user.test.ts        # [NEW] Test User Profile API
+└── package.json                # [MODIFY] Thêm devDependencies + test scripts
+```
+
+---
+
+### Configuration
+
+#### [MODIFY] [package.json](file:///d:/miniSocial/Backend/package.json)
+- Thêm devDependencies: `jest`, `ts-jest`, `@jest/globals`, `supertest`, `@types/supertest`, `mongodb-memory-server`
+- Thêm script: `"test": "node --experimental-vm-modules ./node_modules/.bin/jest --forceExit --detectOpenHandles"`
+
+#### [NEW] jest.config.ts
+- Cấu hình Jest với ESM preset (`ts-jest/presets/default-esm`)
+- Setup file trỏ đến `src/__tests__/setup.ts`
+- Module name mapper cho `.js` → `.ts` imports
+
+---
+
+### Test Setup
+
+#### [NEW] src/__tests__/setup.ts
+- Khởi tạo `MongoMemoryServer` trước tất cả test
+- Kết nối mongoose vào in-memory MongoDB
+- Tạo Express app instance riêng cho test (không listen port thật)
+- Cleanup sau mỗi test suite
+- Mock MinIO service
+
+#### [NEW] src/__tests__/helpers.ts
+- `createTestUser(data)` — Tạo user trong DB test
+- `getAuthToken(userId)` — Tạo JWT token cho test
+- `createTestPost(userId, data)` — Tạo bài viết test
+- `loginAndGetToken(account, password)` — Login qua API và trả về token
+
+---
+
+### Test Suites Chi Tiết
+
+#### [NEW] src/__tests__/auth.test.ts — Authentication (~25 test cases)
+
+| # | Test Case | Method | Endpoint | Expected |
+|---|-----------|--------|----------|----------|
+| 1 | Gửi OTP qua phone thành công | POST | `/api/auth/sendPhoneOtp` | 200, OTP_SENT |
+| 2 | Gửi OTP thiếu phone_number | POST | `/api/auth/sendPhoneOtp` | 400 |
+| 3 | Gửi OTP qua email thành công | POST | `/api/auth/sendEmailOtp` | 200, OTP_SENT |
+| 4 | Gửi OTP thiếu email | POST | `/api/auth/sendEmailOtp` | 400 |
+| 5 | Xác thực OTP phone đúng | POST | `/api/auth/verifyPhoneOtp` | 200, OTP_VERIFIED |
+| 6 | Xác thực OTP phone sai | POST | `/api/auth/verifyPhoneOtp` | 400, INVALID_OTP |
+| 7 | Xác thực OTP email đúng | POST | `/api/auth/verifyEmailOtp` | 200 |
+| 8 | Xác thực OTP email sai | POST | `/api/auth/verifyEmailOtp` | 400 |
+| 9 | Đăng ký thành công (email + OTP) | POST | `/api/auth/register` | 201, REGISTER_SUCCESS |
+| 10 | Đăng ký thành công (phone + OTP) | POST | `/api/auth/register` | 201 |
+| 11 | Đăng ký thiếu email và phone | POST | `/api/auth/register` | 400, MISSING_CONTACT |
+| 12 | Đăng ký thiếu OTP | POST | `/api/auth/register` | 400, MISSING_OTP |
+| 13 | Đăng ký OTP sai | POST | `/api/auth/register` | 400, INVALID_OTP |
+| 14 | Đăng ký trùng username | POST | `/api/auth/register` | 400 |
+| 15 | Đăng ký trùng email | POST | `/api/auth/register` | 400 |
+| 16 | Đăng ký trùng phone | POST | `/api/auth/register` | 400 |
+| 17 | Đăng nhập thành công bằng email | POST | `/api/auth/login` | 200, token + user |
+| 18 | Đăng nhập thành công bằng phone | POST | `/api/auth/login` | 200 |
+| 19 | Đăng nhập thiếu account/password | POST | `/api/auth/login` | 400 |
+| 20 | Đăng nhập sai tài khoản | POST | `/api/auth/login` | 401, USER_NOT_FOUND |
+| 21 | Đăng nhập sai password | POST | `/api/auth/login` | 401, INVALID_PASSWORD |
+| 22 | Reset password thành công | POST | `/api/auth/resetPassword` | 200 |
+| 23 | Reset password OTP sai | POST | `/api/auth/resetPassword` | 400 |
+| 24 | Reset password user không tồn tại | POST | `/api/auth/resetPassword` | 404 |
+| 25 | Google login thiếu idToken | POST | `/api/auth/google` | 400 |
+
+---
+
+#### [NEW] src/__tests__/post.test.ts — Post CRUD (~20 test cases)
+
+| # | Test Case | Method | Endpoint | Expected |
+|---|-----------|--------|----------|----------|
+| 1 | Tạo bài viết text thành công | POST | `/api/post/createPost` | 201 |
+| 2 | Tạo bài viết thiếu content và media | POST | `/api/post/createPost` | 400 |
+| 3 | Tạo bài viết không có token | POST | `/api/post/createPost` | 401 |
+| 4 | Tạo bài viết với hashtags | POST | `/api/post/createPost` | 201, hashtags extracted |
+| 5 | Lấy newsfeed (explore) thành công | GET | `/api/post/explore` | 200, array posts |
+| 6 | Lấy bài viết theo ID | GET | `/api/post/:postId` | 200 |
+| 7 | Lấy bài viết ID không hợp lệ | GET | `/api/post/invalid-id` | 400 |
+| 8 | Lấy bài viết không tồn tại | GET | `/api/post/:id` | 404 |
+| 9 | Sửa bài viết thành công (chủ sở hữu) | PATCH | `/api/post/:postId` | 200 |
+| 10 | Sửa bài viết không phải tác giả | PATCH | `/api/post/:postId` | 403 |
+| 11 | Sửa bài viết không tồn tại | PATCH | `/api/post/:postId` | 404 |
+| 12 | Xóa bài viết thành công | DELETE | `/api/post/:postId` | 200 |
+| 13 | Xóa bài viết không phải tác giả | DELETE | `/api/post/:postId` | 403 |
+| 14 | Xóa bài viết không tồn tại | DELETE | `/api/post/:postId` | 404 |
+| 15 | Share bài viết thành công | POST | `/api/post/:postId/share` | 200, shares +1 |
+| 16 | Share bài viết không tồn tại | POST | `/api/post/:postId/share` | 404 |
+| 17 | Sửa visibility bài viết | PATCH | `/api/post/:postId` | 200, visibility updated |
+| 18 | Tạo bài viết với visibility private | POST | `/api/post/createPost` | 201, visibility = private |
+| 19 | Xóa bài viết cũng xóa reactions | DELETE | `/api/post/:postId` | 200, reactions deleted |
+| 20 | Lấy bài viết private bị chặn | GET | `/api/post/:postId` | 404 |
+
+---
+
+#### [NEW] src/__tests__/comment.test.ts — Comment API (~15 test cases)
+
+| # | Test Case | Method | Endpoint | Expected |
+|---|-----------|--------|----------|----------|
+| 1 | Tạo comment thành công | POST | `/api/post/:postId/comments` | 201 |
+| 2 | Tạo comment thiếu content | POST | `/api/post/:postId/comments` | 400 |
+| 3 | Tạo comment post không tồn tại | POST | `/api/post/:postId/comments` | 404 |
+| 4 | Tạo reply comment thành công | POST | `/api/post/:postId/comments` | 201 (with parent_id) |
+| 5 | Reply với parent_id không tồn tại | POST | `/api/post/:postId/comments` | 404 |
+| 6 | Lấy danh sách comments | GET | `/api/post/:postId/comments` | 200, pagination |
+| 7 | Lấy comments phân trang | GET | `/api/post/:postId/comments?page=2` | 200 |
+| 8 | Lấy replies của comment | GET | `/api/post/:postId/comments/:id/replies` | 200 |
+| 9 | Xóa comment (tác giả) | DELETE | `/api/post/:postId/comments/:id` | 200 |
+| 10 | Xóa comment (chủ bài viết) | DELETE | `/api/post/:postId/comments/:id` | 200 |
+| 11 | Xóa comment không có quyền | DELETE | `/api/post/:postId/comments/:id` | 403 |
+| 12 | Xóa comment không tồn tại | DELETE | `/api/post/:postId/comments/:id` | 404 |
+| 13 | Comment tạo notification cho chủ bài | POST | `/api/post/:postId/comments` | Notification created |
+| 14 | Tự comment bài mình không tạo notification | POST | `/api/post/:postId/comments` | No notification |
+| 15 | Comment stats cập nhật đúng | POST/DELETE | Multiple | stats.comments ±1 |
+
+---
+
+#### [NEW] src/__tests__/reaction.test.ts — Like/React API (~10 test cases)
+
+| # | Test Case | Method | Endpoint | Expected |
+|---|-----------|--------|----------|----------|
+| 1 | Like bài viết thành công | POST | `/api/post/:postId/react` | 200, is_liked: true |
+| 2 | Unlike bài viết (toggle) | POST | `/api/post/:postId/react` | 200, is_liked: false |
+| 3 | Like bài viết không tồn tại | POST | `/api/post/:postId/react` | 404 |
+| 4 | Like bài viết ID không hợp lệ | POST | `/api/post/invalid/react` | 400 |
+| 5 | Like tạo notification cho chủ bài | POST | `/api/post/:postId/react` | Notification created |
+| 6 | Tự like bài mình không tạo notification | POST | `/api/post/:postId/react` | No notification |
+| 7 | Like count tăng đúng | POST | `/api/post/:postId/react` | stats.likes + 1 |
+| 8 | Unlike count giảm đúng | POST | `/api/post/:postId/react` | stats.likes - 1 |
+| 9 | Like không có token | POST | `/api/post/:postId/react` | 401 |
+| 10 | Like 2 lần liên tiếp = unlike | POST×2 | `/api/post/:postId/react` | is_liked: false |
+
+---
+
+#### [NEW] src/__tests__/follow.test.ts — Follow/Block API (~25 test cases)
+
+| # | Test Case | Method | Endpoint | Expected |
+|---|-----------|--------|----------|----------|
+| 1 | Follow user thành công | POST | `/api/follow/:targetId` | 200, is_following: true |
+| 2 | Unfollow (toggle) | POST | `/api/follow/:targetId` | 200, is_following: false |
+| 3 | Không thể follow chính mình | POST | `/api/follow/:targetId` | 400 |
+| 4 | Follow user không tồn tại | POST | `/api/follow/:targetId` | 404 |
+| 5 | Follow user private → pending | POST | `/api/follow/:targetId` | 200, status: pending |
+| 6 | Follow user đã bị block | POST | `/api/follow/:targetId` | 403 |
+| 7 | Block user thành công | POST | `/api/follow/block/:targetId` | 200, is_blocked: true |
+| 8 | Unblock (toggle) | POST | `/api/follow/block/:targetId` | 200, is_blocked: false |
+| 9 | Không thể block chính mình | POST | `/api/follow/block/:targetId` | 400 |
+| 10 | Block xóa follow 2 chiều | POST | `/api/follow/block/:targetId` | follows deleted |
+| 11 | Kiểm tra follow status | GET | `/api/follow/status/:targetId` | 200, status object |
+| 12 | Lấy danh sách followers | GET | `/api/follow/:userId/followers` | 200, users array |
+| 13 | Lấy danh sách following | GET | `/api/follow/:userId/following` | 200 |
+| 14 | Lấy pending requests | GET | `/api/follow/requests/pending` | 200 |
+| 15 | Accept follow request | PATCH | `/api/follow/requests/:id/accept` | 200, accepted |
+| 16 | Accept request không tồn tại | PATCH | `/api/follow/requests/:id/accept` | 404 |
+| 17 | Reject follow request | DELETE | `/api/follow/requests/:id/reject` | 200 |
+| 18 | Lấy follow counts | GET | `/api/follow/:userId/counts` | 200, numbers |
+| 19 | Follow tạo notification | POST | `/api/follow/:targetId` | notification created |
+| 20 | Follow ID không hợp lệ | POST | `/api/follow/invalid` | 400 |
+
+---
+
+#### [NEW] src/__tests__/notification.test.ts — Notification API (~15 test cases)
+
+| # | Test Case | Method | Endpoint | Expected |
+|---|-----------|--------|----------|----------|
+| 1 | Lấy danh sách thông báo | GET | `/api/notifications` | 200, pagination |
+| 2 | Lấy thông báo phân trang | GET | `/api/notifications?page=2` | 200 |
+| 3 | Lấy số thông báo chưa đọc | GET | `/api/notifications/unread-count` | 200, unreadCount |
+| 4 | Đánh dấu 1 thông báo đã đọc | PATCH | `/api/notifications/:id/read` | 200, is_read: true |
+| 5 | Đánh dấu thông báo không tồn tại | PATCH | `/api/notifications/:id/read` | 404 |
+| 6 | Đánh dấu tất cả đã đọc | PATCH | `/api/notifications/read-all` | 200, modifiedCount |
+| 7 | Xóa 1 thông báo | DELETE | `/api/notifications/:id` | 200 |
+| 8 | Xóa thông báo không tồn tại | DELETE | `/api/notifications/:id` | 404 |
+| 9 | Xóa thông báo của người khác | DELETE | `/api/notifications/:id` | 404 |
+| 10 | Không có token → 401 | GET | `/api/notifications` | 401 |
+| 11 | ID không hợp lệ | PATCH | `/api/notifications/invalid/read` | 400 |
+| 12 | Unread count sau mark-all-read = 0 | PATCH+GET | Multiple | unreadCount: 0 |
+| 13 | Thông báo sắp xếp mới nhất trước | GET | `/api/notifications` | sorted desc |
+| 14 | Không tự thông báo cho chính mình | Internal | createNotification | no self notification |
+| 15 | Notification có populated sender | GET | `/api/notifications` | sender info included |
+
+---
+
+#### [NEW] src/__tests__/conversation.test.ts — Chat/Messaging API (~20 test cases)
+
+| # | Test Case | Method | Endpoint | Expected |
+|---|-----------|--------|----------|----------|
+| 1 | Tạo conversation mới | POST | `/api/conversations/:receiverId` | 200 |
+| 2 | Lấy conversation đã tồn tại (idempotent) | POST | `/api/conversations/:receiverId` | 200, same id |
+| 3 | Không thể tạo conversation với chính mình | POST | `/api/conversations/:selfId` | 400 |
+| 4 | Lấy danh sách conversations | GET | `/api/conversations` | 200, array |
+| 5 | Gửi tin nhắn text | POST | `/api/conversations/:id/messages` | 201 |
+| 6 | Gửi tin nhắn thiếu content | POST | `/api/conversations/:id/messages` | 400 |
+| 7 | Gửi tin nhắn conversation không tồn tại | POST | `/api/conversations/:id/messages` | 404 |
+| 8 | Lấy tin nhắn trong conversation | GET | `/api/conversations/:id/messages` | 200, pagination |
+| 9 | Lấy tin nhắn phân trang | GET | `/api/conversations/:id/messages?page=2` | 200 |
+| 10 | Lấy tin nhắn conversation không phải thành viên | GET | `/api/conversations/:id/messages` | 404 |
+| 11 | Xóa tin nhắn (soft delete) | DELETE | `/api/conversations/:id/messages/:msgId` | 200 |
+| 12 | Xóa tin nhắn không tồn tại | DELETE | `/api/conversations/:id/messages/:msgId` | 404 |
+| 13 | Xóa tin nhắn đã xóa → lỗi | DELETE | `/api/conversations/:id/messages/:msgId` | 400 |
+| 14 | Mark as read | PATCH | `/api/conversations/:id/read` | 200 |
+| 15 | Mark as read conversation không phải thành viên | PATCH | `/api/conversations/:id/read` | 404 |
+| 16 | LastMessage cập nhật sau khi gửi tin | POST+GET | Multiple | lastMessage updated |
+| 17 | UnreadCount tăng khi nhận tin | POST+GET | Multiple | unreadCount +1 |
+| 18 | UnreadCount reset sau mark-read | PATCH+GET | Multiple | unreadCount = 0 |
+| 19 | Receiver ID không hợp lệ | POST | `/api/conversations/invalid` | 400 |
+| 20 | Gửi tin nhắn không có token | POST | `/api/conversations/:id/messages` | 401 |
+
+---
+
+#### [NEW] src/__tests__/search.test.ts — Search API (~8 test cases)
+
+| # | Test Case | Method | Endpoint | Expected |
+|---|-----------|--------|----------|----------|
+| 1 | Tìm kiếm user theo username | GET | `/api/search?q=john` | 200, users found |
+| 2 | Tìm kiếm user theo display_name | GET | `/api/search?q=Nguyen` | 200, users found |
+| 3 | Tìm kiếm bài viết theo content | GET | `/api/search?q=hello` | 200, posts found |
+| 4 | Tìm kiếm bài viết theo hashtag | GET | `/api/search?q=%23travel` | 200, posts found |
+| 5 | Tìm kiếm query trống | GET | `/api/search?q=` | 200, empty arrays |
+| 6 | Tìm kiếm không có kết quả | GET | `/api/search?q=xyzabc123` | 200, empty arrays |
+| 7 | Tìm kiếm trả về cả users và posts | GET | `/api/search?q=test` | 200, both arrays |
+| 8 | Post private không xuất hiện trong search | GET | `/api/search?q=...` | private post excluded |
+
+---
+
+#### [NEW] src/__tests__/report.test.ts — Report API (~10 test cases)
+
+| # | Test Case | Method | Endpoint | Expected |
+|---|-----------|--------|----------|----------|
+| 1 | Tạo report thành công | POST | `/api/report` | 201 |
+| 2 | Tạo report thiếu field | POST | `/api/report` | 400 |
+| 3 | Tạo report trùng lặp | POST | `/api/report` | 400, ALREADY_REPORTED |
+| 4 | Report target_id không hợp lệ | POST | `/api/report` | 400 |
+| 5 | Lấy reports (admin) | GET | `/api/report` | 200 |
+| 6 | Lấy reports (user thường → bị chặn) | GET | `/api/report` | 403 |
+| 7 | Report không có token | POST | `/api/report` | 401 |
+| 8 | Report phân trang | GET | `/api/report?page=1&limit=5` | 200, pagination |
+
+---
+
+#### [NEW] src/__tests__/feed.test.ts — Personal Feed API (~8 test cases)
+
+| # | Test Case | Method | Endpoint | Expected |
+|---|-----------|--------|----------|----------|
+| 1 | Feed cá nhân có bài của người follow | GET | `/api/post/feed` | 200, posts from following |
+| 2 | Feed có bài của chính mình | GET | `/api/post/feed` | 200, own posts included |
+| 3 | Feed không có bài private | GET | `/api/post/feed` | private posts excluded |
+| 4 | Feed phân trang | GET | `/api/post/feed?page=2` | 200, pagination |
+| 5 | Feed trống (chưa follow ai) | GET | `/api/post/feed` | 200, only own posts |
+| 6 | Feed có is_liked state | GET | `/api/post/feed` | is_liked field present |
+| 7 | Feed không có token | GET | `/api/post/feed` | 401 |
+| 8 | Feed sắp xếp mới nhất trước | GET | `/api/post/feed` | sorted desc |
+
+---
+
+#### [NEW] src/__tests__/user.test.ts — User Profile API (~15 test cases)
+
+| # | Test Case | Method | Endpoint | Expected |
+|---|-----------|--------|----------|----------|
+| 1 | Lấy profile chính mình | GET | `/api/users/me` | 200, user data + posts |
+| 2 | Lấy profile user khác | GET | `/api/users/profile/:id` | 200, user data |
+| 3 | Lấy profile user không tồn tại | GET | `/api/users/profile/:id` | 404 |
+| 4 | Cập nhật display_name | PUT | `/api/users/update` | 200, updated |
+| 5 | Cập nhật bio | PUT | `/api/users/update` | 200 |
+| 6 | Cập nhật privacy setting | PUT | `/api/users/update` | 200 |
+| 7 | Cập nhật language setting | PUT | `/api/users/update` | 200 |
+| 8 | Profile không chứa password_hash | GET | `/api/users/me` | password_hash excluded |
+| 9 | Lấy suggested users | GET | `/api/users/suggested` | 200, exclude self + following |
+| 10 | Suggested users không bao gồm chính mình | GET | `/api/users/suggested` | self excluded |
+| 11 | Suggested users không bao gồm người đã follow | GET | `/api/users/suggested` | following excluded |
+| 12 | Profile có followersCount và followingCount | GET | `/api/users/me` | counts present |
+| 13 | Profile user khác respect visibility | GET | `/api/users/profile/:id` | filtered posts |
+| 14 | Không có token → 401 | GET | `/api/users/me` | 401 |
+| 15 | Cập nhật profile không có token | PUT | `/api/users/update` | 401 |
+
+---
+
+## Tổng kết số lượng test cases
+
+| Module | Số test cases |
+|--------|:------------:|
+| Auth | ~25 |
+| Post | ~20 |
+| Comment | ~15 |
+| Reaction | ~10 |
+| Follow/Block | ~25 |
+| Notification | ~15 |
+| Conversation | ~20 |
+| Search | ~8 |
+| Report | ~8 |
+| Feed | ~8 |
+| User | ~15 |
+| **Tổng** | **~170+** |
+
+## Verification Plan
+
+### Automated Tests
+```bash
+cd Backend
+npm test                    # Chạy tất cả test
+npm test -- --verbose       # Chạy với chi tiết
+npm test -- auth.test.ts    # Chạy 1 file cụ thể
+```
+
+### Kết quả mong đợi
+- Tất cả test PASS ✅
+- Không cần khởi động MongoDB/MinIO thật
+- Thời gian chạy < 60 giây
+- Coverage report hiển thị % phủ cho từng controller

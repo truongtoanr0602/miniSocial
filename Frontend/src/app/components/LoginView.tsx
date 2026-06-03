@@ -42,7 +42,6 @@ export function LoginView() {
       
       // Gọi service gửi idToken xuống Backend (đổi tên biến thành response)
       const response = await authService.googleLogin(idToken);
-      console.log("Kết quả từ Backend:", response);
       
       // ⚡️ Chấm qua .data một lần để lấy đúng nội dung bên trong
       const token = response.data.token;

@@ -1,14 +1,24 @@
-import React, { useMemo, useState } from "react";
-import { Pressable, Text, TextInput, View, StyleSheet } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, Text, TextInput, View, StyleSheet } from "react-native";
 import { Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import Constants, { ExecutionEnvironment } from "expo-constants";
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "../store/AuthContext";
 import { useLanguage } from "../store/LanguageContext";
+import {
+  GOOGLE_AUTH_CONFIG,
+  GOOGLE_AUTH_SCHEME,
+  IS_GOOGLE_LOGIN_CONFIGURED,
+} from "../api/config";
 import { ui, palette } from "../theme";
 import { ScreenGradient } from "../components/common/ScreenGradient";
+
+WebBrowser.maybeCompleteAuthSession();
 
 type LoginFormData = {
   account: string;
@@ -16,10 +26,29 @@ type LoginFormData = {
 };
 
 export default function LoginScreen({ navigation }: any) {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const { t } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const googleClientId =
+    GOOGLE_AUTH_CONFIG.webClientId ||
+    GOOGLE_AUTH_CONFIG.androidClientId ||
+    GOOGLE_AUTH_CONFIG.iosClientId;
+  const isExpoGo =
+    Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+  const [googleRequest, googleResponse, promptGoogleLogin] =
+    Google.useIdTokenAuthRequest(
+      {
+        clientId: googleClientId,
+        webClientId: GOOGLE_AUTH_CONFIG.webClientId || googleClientId,
+        androidClientId: GOOGLE_AUTH_CONFIG.androidClientId || googleClientId,
+        iosClientId: GOOGLE_AUTH_CONFIG.iosClientId || googleClientId,
+        scopes: ["openid", "profile", "email"],
+        selectAccount: true,
+      },
+      { scheme: GOOGLE_AUTH_SCHEME },
+    );
   const loginSchema = useMemo(
     () =>
       z.object({
@@ -49,6 +78,69 @@ export default function LoginScreen({ navigation }: any) {
       setServerError(result.message || t("Đăng nhập thất bại", "Login failed"));
     }
   };
+
+  useEffect(() => {
+    if (!googleResponse) return;
+
+    const completeGoogleLogin = async () => {
+      if (googleResponse.type !== "success") {
+        setIsGoogleSubmitting(false);
+        if (googleResponse.type === "error") {
+          setServerError(t("Đăng nhập Google thất bại", "Google login failed"));
+        }
+        return;
+      }
+
+      const idToken =
+        googleResponse.params?.id_token ||
+        (googleResponse as any).authentication?.idToken;
+
+      if (!idToken) {
+        setIsGoogleSubmitting(false);
+        setServerError(t("Không nhận được Google ID token", "Google ID token was not returned"));
+        return;
+      }
+
+      const result = await loginWithGoogle(idToken);
+      setIsGoogleSubmitting(false);
+      if (!result.ok) {
+        setServerError(result.message || t("Đăng nhập Google thất bại", "Google login failed"));
+      }
+    };
+
+    void completeGoogleLogin();
+  }, [googleResponse, loginWithGoogle, t]);
+
+  const handleGooglePress = async () => {
+    setServerError("");
+    if (isExpoGo) {
+      setServerError(
+        t(
+          "Google OAuth không chạy trong Expo Go. Hãy cài development build bằng npx expo run:ios hoặc EAS development build.",
+          "Google OAuth does not run in Expo Go. Install a development build with npx expo run:ios or an EAS development build.",
+        ),
+      );
+      return;
+    }
+
+    if (!IS_GOOGLE_LOGIN_CONFIGURED) {
+      setServerError(
+        t(
+          "Chưa cấu hình Google Client ID cho mobile.",
+          "Google Client ID is not configured for mobile.",
+        ),
+      );
+      return;
+    }
+
+    setIsGoogleSubmitting(true);
+    await promptGoogleLogin();
+  };
+
+  const isGoogleDisabled =
+    isGoogleSubmitting ||
+    isSubmitting ||
+    (IS_GOOGLE_LOGIN_CONFIGURED && !googleRequest);
 
   return (
     <ScreenGradient style={ui.page}>
@@ -151,6 +243,45 @@ export default function LoginScreen({ navigation }: any) {
             </LinearGradient>
           </Pressable>
         </View>
+
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>{t("Hoặc tiếp tục với", "Or continue with")}</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <Pressable
+          style={[styles.googleButton, isGoogleDisabled ? styles.disabled : null]}
+          disabled={isGoogleDisabled}
+          onPress={handleGooglePress}
+        >
+          {isGoogleSubmitting ? (
+            <ActivityIndicator color={palette.ink} size="small" />
+          ) : (
+            <Text style={styles.googleMark}>G</Text>
+          )}
+          <Text style={styles.googleButtonText}>
+            {isGoogleSubmitting
+              ? t("Đang đăng nhập Google...", "Signing in with Google...")
+              : t("Đăng nhập bằng Google", "Sign in with Google")}
+          </Text>
+        </Pressable>
+
+        {isExpoGo ? (
+          <Text style={styles.googleHint}>
+            {t(
+              "Bạn đang chạy bằng Expo Go nên Google sẽ trả lỗi redirect_uri=exp://... Hãy dùng development build để đăng nhập Google.",
+              "You are running in Expo Go, so Google will reject redirect_uri=exp://... Use a development build for Google login.",
+            )}
+          </Text>
+        ) : !IS_GOOGLE_LOGIN_CONFIGURED ? (
+          <Text style={styles.googleHint}>
+            {t(
+              "Thêm EXPO_PUBLIC_GOOGLE_CLIENT_ID hoặc Google client ID theo nền tảng để bật chức năng này.",
+              "Set EXPO_PUBLIC_GOOGLE_CLIENT_ID or platform Google client IDs to enable this.",
+            )}
+          </Text>
+        ) : null}
         
         <Pressable
           style={ui.buttonGhost}
@@ -194,5 +325,50 @@ const styles = StyleSheet.create({
   serverErrorText: { color: palette.danger, fontSize: 14 },
   disabled: { opacity: 0.6 },
   arrowIcon: { marginLeft: 8 },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginVertical: 18,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: palette.line,
+  },
+  dividerText: {
+    color: palette.muted,
+    fontSize: 13,
+  },
+  googleButton: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  googleMark: {
+    color: "#4285f4",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  googleButtonText: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  googleHint: {
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 12,
+    textAlign: "center",
+  },
   registerLink: { color: palette.muted, fontSize: 14 },
 });

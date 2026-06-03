@@ -8,7 +8,7 @@
     "module": "nodenext",
     "target": "esnext",
     // Mình đã comment dòng "types": [] lại để TypeScript tự động nhận diện @types/node
-    // "types": [], 
+    // "types": [],
 
     // 3. FIX LỖI IMPORT MONGOOSE: Bật công tắc này lên!
     "esModuleInterop": true,
@@ -30,7 +30,8 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node", "jest"]
   },
   // Bỏ qua thư mục node_modules để VS Code chạy nhẹ hơn
   "exclude": ["node_modules", "dist"]

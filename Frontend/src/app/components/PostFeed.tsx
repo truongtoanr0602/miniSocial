@@ -6,7 +6,6 @@ import { CreatePostModal } from "./CreatePostModal";
 import apiClient from "../../services/api";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useLangText } from "../../hooks/useLangText";
-import { sharePostLink } from "../../utils/share";
 import type { IPost } from "../../types/models";
 
 interface PostFeedProps {
@@ -130,9 +129,11 @@ export function PostFeed({
   const handleShare = useCallback(async (postId: string) => {
     try {
       const response = await apiClient.post(`/post/${postId}/share`);
-      const shares = response.data.data?.shares;
-      setPosts((prev) =>
-        prev.map((post) =>
+      const result = response.data.data;
+      const shares = result?.shares;
+      const sharedPost = result?.sharedPost as IPost | undefined;
+      setPosts((prev) => {
+        const updatedPosts = prev.map((post) =>
           post._id === postId
             ? {
                 ...post,
@@ -142,9 +143,15 @@ export function PostFeed({
                 },
               }
             : post,
-        ),
-      );
-      await sharePostLink(postId);
+        );
+
+        if (sharedPost?._id && !updatedPosts.some((post) => post._id === sharedPost._id)) {
+          return [sharedPost, ...updatedPosts];
+        }
+
+        return updatedPosts;
+      });
+      toast.success(text("Đã chia sẻ bài viết lên trang cá nhân.", "Post shared to your profile."));
     } catch (err) {
       console.error("Share failed:", err);
       toast.error(text("Không thể chia sẻ bài viết.", "Could not share post."));

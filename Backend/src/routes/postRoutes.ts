@@ -29,7 +29,7 @@ router.delete('/:postId', verifyToken, deletePost);
 // POST /api/post/:postId/react — Like/react bài viết
 router.post('/:postId/react', verifyToken, reactToPost);
 
-// POST /api/post/:postId/share — Tăng số lượt chia sẻ
+// POST /api/post/:postId/share — Chia sẻ bài viết lên profile và tăng số lượt chia sẻ
 router.post('/:postId/share', verifyToken, sharePost);
 
 // ── Comment Routes ──

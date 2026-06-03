@@ -18,7 +18,7 @@ import apiClient from "../../services/api";
 import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useLangText } from "../../hooks/useLangText";
 import { resolveMediaUrl } from "../../utils/mediaUrl";
-import { copyProfileLink, sharePostLink } from "../../utils/share";
+import { copyProfileLink } from "../../utils/share";
 import { PostCard } from "./PostCard";
 import type { IMyProfile, IPost, IUser } from "../../types/models";
 
@@ -231,31 +231,43 @@ export function ProfileView({ userId, onEditProfile, onOpenProfile }: ProfileVie
   const handleSharePost = useCallback(async (postId: string) => {
     try {
       const response = await apiClient.post(`/post/${postId}/share`);
-      const shares = response.data.data?.shares;
-      setProfile((prev) =>
-        prev
-          ? {
-              ...prev,
-              posts: prev.posts.map((post) =>
-                post._id === postId
-                  ? {
-                      ...post,
-                      stats: {
-                        ...post.stats,
-                        shares: typeof shares === "number" ? shares : post.stats.shares + 1,
-                      },
-                    }
-                  : post,
-              ),
-            }
-          : prev,
-      );
-      await sharePostLink(postId);
+      const result = response.data.data;
+      const shares = result?.shares;
+      const sharedPost = result?.sharedPost as IPost | undefined;
+      setProfile((prev) => {
+        if (!prev) return prev;
+
+        const updatedPosts = prev.posts.map((post) =>
+          post._id === postId
+            ? {
+                ...post,
+                stats: {
+                  ...post.stats,
+                  shares: typeof shares === "number" ? shares : post.stats.shares + 1,
+                },
+              }
+            : post,
+        );
+
+        if (isOwnProfile && sharedPost?._id && !updatedPosts.some((post) => post._id === sharedPost._id)) {
+          return {
+            ...prev,
+            postsCount: prev.postsCount + 1,
+            posts: [sharedPost, ...updatedPosts],
+          };
+        }
+
+        return {
+          ...prev,
+          posts: updatedPosts,
+        };
+      });
+      toast.success(text("Đã chia sẻ bài viết lên trang cá nhân.", "Post shared to your profile."));
     } catch (err) {
       console.error("Share failed:", err);
       toast.error(text("Không thể chia sẻ bài viết.", "Could not share post."));
     }
-  }, [text]);
+  }, [isOwnProfile, text]);
 
   const handleReportProfile = useCallback(async () => {
     if (!targetUserId || isOwnProfile) return;

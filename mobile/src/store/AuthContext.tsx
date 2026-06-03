@@ -9,6 +9,7 @@ interface AuthContextType {
   user: IUser | null;
   token: string | null;
   login: (account: string, password: string) => Promise<{ ok: boolean; message?: string }>;
+  loginWithGoogle: (idToken: string) => Promise<{ ok: boolean; message?: string }>;
   register: (data: RegisterPayload) => Promise<{ ok: boolean; message?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -67,6 +68,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadToken();
   }, [fetchMyProfile]);
 
+  const completeLogin = useCallback(async (resData: { token: string; user: IUser }) => {
+    const normalizedUser = {
+      ...resData.user,
+      _id: resData.user._id || (resData.user as any).id,
+    };
+
+    setTokenState(resData.token);
+    setToken(resData.token);
+    setUser(normalizedUser);
+    await SecureStore.setItemAsync("token", resData.token);
+  }, []);
+
   const login = useCallback(async (account: string, password: string) => {
     try {
       const { data } = await api.post<ApiResponse<{ token: string; user: IUser }>>(
@@ -74,18 +87,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         { account, password },
       );
 
-      const resData = data.data;
-
-      setTokenState(resData.token);
-      setToken(resData.token);
-      setUser(resData.user);
-      await SecureStore.setItemAsync("token", resData.token);
+      await completeLogin(data.data);
       return { ok: true };
     } catch (error: any) {
       const message = error.response?.data?.message || "Đăng nhập thất bại!";
       return { ok: false, message };
     }
-  }, []);
+  }, [completeLogin]);
+
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    try {
+      const { data } = await api.post<ApiResponse<{ token: string; user: IUser }>>(
+        ENDPOINTS.GOOGLE_LOGIN,
+        { idToken },
+      );
+
+      await completeLogin(data.data);
+      return { ok: true };
+    } catch (error: any) {
+      const message = error.response?.data?.message || "Đăng nhập Google thất bại!";
+      return { ok: false, message };
+    }
+  }, [completeLogin]);
 
   const register = useCallback(async (payload: RegisterPayload) => {
     try {
@@ -112,12 +135,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       token,
       login,
+      loginWithGoogle,
       register,
       logout,
       isAuthenticated: Boolean(token),
       isLoading,
     }),
-    [user, token, login, register, logout, isLoading],
+    [user, token, login, loginWithGoogle, register, logout, isLoading],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

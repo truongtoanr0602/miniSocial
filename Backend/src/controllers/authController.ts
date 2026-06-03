@@ -8,7 +8,7 @@ import otpModels from "../models/otpModels.js";
 import { env } from "../config/env.js";
 
 
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const client = new OAuth2Client();
 
 // ─────────────────────────────────────────────
 // [POST] /api/auth/register
@@ -372,8 +372,7 @@ export const googleLogin = async (
       return;
     }
 
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    if (!clientId) {
+    if (env.googleClientIds.length === 0) {
       console.error("GOOGLE_CLIENT_ID chưa được cấu hình");
       errorResponse(
         req,
@@ -387,7 +386,10 @@ export const googleLogin = async (
 
     let ticket: any;
     try {
-      ticket = await client.verifyIdToken({ idToken, audience: clientId });
+      ticket = await client.verifyIdToken({
+        idToken,
+        audience: env.googleClientIds,
+      });
     } catch (verifyError: any) {
       console.error("Token verification failed:", verifyError?.message);
       errorResponse(

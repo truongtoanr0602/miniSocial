@@ -1,0 +1,11 @@
+/**
+ * globalTeardown.ts — Chạy MỘT LẦN sau khi tất cả test kết thúc.
+ */
+import { MongoMemoryServer } from "mongodb-memory-server";
+
+export default async function globalTeardown() {
+  const mongod: MongoMemoryServer = (globalThis as any).__MONGOD__;
+  if (mongod) {
+    await mongod.stop();
+  }
+}
